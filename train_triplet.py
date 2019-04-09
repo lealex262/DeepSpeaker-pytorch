@@ -160,21 +160,6 @@ if args.makemfb:
     print("==> Complete converting")
 
 
-# if args.mfb:
-#     transform_train = transforms.Compose([
-#         truncatedinputfromMFB(),
-#         totensor()
-#     ])
-#     file_loader = read_MFB
-# else:
-#     transform_train = transforms.Compose([
-#                         truncatedinput(),
-#                         toMFB(),
-#                         totensor(),
-#                         #tonormal()
-#                     ])
-#     file_loader = read_audio
-
 transform_train = transforms.Compose([
     truncatedinputfromMFB(),
     totensor()
@@ -417,8 +402,6 @@ def test(test_loader, model, epoch):
     labels = np.array([sublabel for label in labels for sublabel in label])
     distances = np.array([subdist for dist in distances for subdist in dist])
 
-    # print(">>>>>>>>>>>>>> distance", distances)
-    # print(">>>>>>>>>>>>>> labels", labels)
     tpr, fpr, accuracy, val,  far = evaluate(distances,labels)
     print('\33[91mTest set: Accuracy: {:.8f}\n\33[0m'.format(np.mean(accuracy)))
     logger.log_value('Test Accuracy', np.mean(accuracy))
