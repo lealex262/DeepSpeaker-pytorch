@@ -6,8 +6,8 @@ import constants as c
 import librosa
 import os
 
-def mk_MFB(filename, sample_rate=c.SAMPLE_RATE,use_delta = c.USE_DELTA,use_scale = c.USE_SCALE,use_logscale = c.USE_LOGSCALE):
-    if os.path.exists(filename.replace('.wav', '.npy')):
+def mk_MFB(filename, sample_rate=c.SAMPLE_RATE, use_delta = c.USE_DELTA, use_scale = c.USE_SCALE, use_logscale = c.USE_LOGSCALE, replace = False):
+    if not replace and os.path.exists(filename.replace('.wav', '.npy')):
         return
 
     audio, sr = librosa.load(filename, sr=sample_rate, mono=True)
@@ -34,7 +34,7 @@ def mk_MFB(filename, sample_rate=c.SAMPLE_RATE,use_delta = c.USE_DELTA,use_scale
 
 
 
-    np.save(filename.replace('.wav', '.npy'),frames_features)
+    np.save(filename.replace('.wav', '.npy'), frames_features)
 
     return
 

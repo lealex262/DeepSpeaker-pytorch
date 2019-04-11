@@ -22,14 +22,14 @@ from VoxcelebTestset import VoxcelebTestset
 from voxceleb_wav_reader import read_voxceleb_structure
 
 from model import PairwiseDistance,TripletMarginLoss
-from audio_processing import toMFB, totensor, truncatedinput, tonormal, truncatedinputfromMFB,read_MFB,read_audio,mk_MFB
+from audio_processing import toMFB, totensor, truncatedinput, tonormal, truncatedinputfromMFB, read_MFB,read_audio, mk_MFB
 
 # Training settings
 parser = argparse.ArgumentParser(description='PyTorch Speaker Recognition')
 # Model options
-parser.add_argument('--dataroot', type=str, default='./voxceleb',
+parser.add_argument('--dataroot', type=str, default='audio/voxceleb1',
                     help='path to dataset')
-parser.add_argument('--test-pairs-path', type=str, default='./voxceleb/voxceleb1_test3.txt',
+parser.add_argument('--test-pairs-path', type=str, default='audio/voxceleb1/veri_test.txt',
                     help='path to pairs file')
 
 parser.add_argument('--log-dir', default='./data/pytorch_speaker_logs',
@@ -91,6 +91,8 @@ parser.add_argument('--makemfb', action='store_true', default=False,
                     help='need to make mfb file')
 parser.add_argument('--test-only', action='store_true', default=False,
                     help='whether to skip training and do testing only')
+parser.add_argument('--sample', action='store_true', default=False,
+                    help='whether to smaller dataset for debugging')
 
 
 args = parser.parse_args()
@@ -126,7 +128,7 @@ print('==> Reading wav files')
 # voxceleb_dev = [datum for datum in voxceleb if datum['subset']=='dev']
 # voxceleb_test = [datum for datum in voxceleb if datum['subset']=='test']
 
-voxceleb_dev, voxceleb_test = read_voxceleb_structure(args.dataroot)
+voxceleb_dev, voxceleb_test = read_voxceleb_structure(args.dataroot, sample=args.sample)
 
 # generate_test_pair = not args.test_pairs_path
 # if generate_test_pair:
@@ -150,7 +152,9 @@ if args.makemfb:
         return cleaned
 
     MAX_THREAD_COUNT = 5
-    num_threads = min(MAX_THREAD_COUNT, os.cpu_count())
+    # num_threads = min(MAX_THREAD_COUNT, os.cpu_count())
+    import multiprocessing
+    num_threads = min(MAX_THREAD_COUNT, multiprocessing.cpu_count())
     parallel_function(mk_MFB, [datum['file_path'] for datum in voxceleb_test], num_threads)
     print('===> Converting test set is done')
     if not args.test_only:
@@ -247,7 +251,8 @@ def train(train_loader, model, optimizer, epoch):
     pbar = tqdm(enumerate(train_loader))
     for batch_idx, (data_a, data_p, data_n,label_p,label_n) in pbar:
         #print("on training{}".format(epoch))
-        data_a, data_p, data_n = data_a.cuda(), data_p.cuda(), data_n.cuda()
+        if args.cuda:
+            data_a, data_p = data_a.cuda(), data_p.cuda()
         data_a, data_p, data_n = Variable(data_a), Variable(data_p), \
                                  Variable(data_n)
 
@@ -303,13 +308,24 @@ def train(train_loader, model, optimizer, epoch):
             hard_triplets = np.where(all == 1)
             if len(hard_triplets[0]) == 0:
                 continue
-            out_selected_a = Variable(torch.from_numpy(out_a.cpu().data.numpy()[hard_triplets]).cuda())
-            out_selected_p = Variable(torch.from_numpy(out_p.cpu().data.numpy()[hard_triplets]).cuda())
-            out_selected_n = Variable(torch.from_numpy(out_n.cpu().data.numpy()[hard_triplets]).cuda())
 
-            selected_data_a = Variable(torch.from_numpy(data_a.cpu().data.numpy()[hard_triplets]).cuda())
-            selected_data_p = Variable(torch.from_numpy(data_p.cpu().data.numpy()[hard_triplets]).cuda())
-            selected_data_n = Variable(torch.from_numpy(data_n.cpu().data.numpy()[hard_triplets]).cuda())
+            if args.cuda:
+                out_selected_a = Variable(torch.from_numpy(out_a.cpu().data.numpy()[hard_triplets]).cuda())
+                out_selected_p = Variable(torch.from_numpy(out_p.cpu().data.numpy()[hard_triplets]).cuda())
+                out_selected_n = Variable(torch.from_numpy(out_n.cpu().data.numpy()[hard_triplets]).cuda())
+
+                selected_data_a = Variable(torch.from_numpy(data_a.cpu().data.numpy()[hard_triplets]).cuda())
+                selected_data_p = Variable(torch.from_numpy(data_p.cpu().data.numpy()[hard_triplets]).cuda())
+                selected_data_n = Variable(torch.from_numpy(data_n.cpu().data.numpy()[hard_triplets]).cuda())
+            else:
+                out_selected_a = Variable(torch.from_numpy(out_a.data.numpy()[hard_triplets]))
+                out_selected_p = Variable(torch.from_numpy(out_p.data.numpy()[hard_triplets]))
+                out_selected_n = Variable(torch.from_numpy(out_n.data.numpy()[hard_triplets]))
+
+                selected_data_a = Variable(torch.from_numpy(data_a.data.numpy()[hard_triplets]))
+                selected_data_p = Variable(torch.from_numpy(data_p.data.numpy()[hard_triplets]))
+                selected_data_n = Variable(torch.from_numpy(data_n.data.numpy()[hard_triplets]))
+
 
             selected_label_p = torch.from_numpy(label_p.cpu().numpy()[hard_triplets])
             selected_label_n= torch.from_numpy(label_n.cpu().numpy()[hard_triplets])
@@ -321,9 +337,14 @@ def train(train_loader, model, optimizer, epoch):
 
             criterion = nn.CrossEntropyLoss()
             predicted_labels = torch.cat([cls_a,cls_p,cls_n])
-            true_labels = torch.cat([Variable(selected_label_p.cuda()),Variable(selected_label_p.cuda()),Variable(selected_label_n.cuda())])
+            if args.cuda:
+                true_labels = torch.cat([Variable(selected_label_p.cuda()),Variable(selected_label_p.cuda()),Variable(selected_label_n.cuda())])
 
-            cross_entropy_loss = criterion(predicted_labels.cuda(),true_labels.cuda())
+                cross_entropy_loss = criterion(predicted_labels.cuda(),true_labels.cuda())
+            else:
+                true_labels = torch.cat([Variable(selected_label_p),Variable(selected_label_p),Variable(selected_label_n)])
+
+                cross_entropy_loss = criterion(predicted_labels,true_labels)
 
             loss = cross_entropy_loss + triplet_loss * args.loss_ratio
             # compute gradient and update weights
@@ -333,16 +354,16 @@ def train(train_loader, model, optimizer, epoch):
 
 
             # log loss value for hard selected sample
-            logger.log_value('selected_triplet_loss', triplet_loss.data[0]).step()
-            logger.log_value('selected_cross_entropy_loss', cross_entropy_loss.data[0]).step()
-            logger.log_value('selected_total_loss', loss.data[0]).step()
+            logger.log_value('selected_triplet_loss', triplet_loss.data).step()
+            logger.log_value('selected_cross_entropy_loss', cross_entropy_loss.data).step()
+            logger.log_value('selected_total_loss', loss.data).step()
             if batch_idx % args.log_interval == 0:
                 pbar.set_description(
                     'Train Epoch: {:3d} [{:8d}/{:8d} ({:3.0f}%)]\tLoss: {:.6f} \t Number of Selected Triplets: {:4d}'.format(
                         # epoch, batch_idx * len(data_a), len(train_loader.dataset),
                         epoch, batch_idx * len(data_a), len(train_loader) * len(data_a),
                         100. * batch_idx / len(train_loader),
-                        loss.data[0],len(hard_triplets[0])))
+                        loss.data,len(hard_triplets[0])))
 
 
             dists = l2_dist.forward(out_selected_a,out_selected_n) #torch.sqrt(torch.sum((out_a - out_n) ** 2, 1))  # euclidean distance

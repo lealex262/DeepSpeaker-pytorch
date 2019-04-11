@@ -1,3 +1,4 @@
 *.pyc
-audio/*
+audio/voxceleb1/*
+audio/LibriSpeechSamples/*
 data/*

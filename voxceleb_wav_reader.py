@@ -10,22 +10,30 @@ random.seed(12345)
 
 # np.set_printoptions(threshold=np.nan)
 
-def read_voxceleb_structure(directory, test_only=False):
+def read_voxceleb_structure(directory, test_only=False, sample=False):
     voxceleb = []
     speakers = set()
     for subset in os.listdir(directory):
-        if not os.path.isdir(os.path.join(directory, subset)) or (test_only and subset == 'dev'):
+        if not os.path.isdir(os.path.join(directory, subset)):
+            continue
+        if subset == 'dev' and (test_only or sample):
+            continue
+        if subset != 'dev' and subset != 'test' and subset != 'sample_dev':
             continue
         # root_dir/subset/speaker_id/uri/wav
         key = os.path.join(directory, subset) + '/*/*/*.wav'
         print('==> Reading {} set'.format(subset))
         for file_path in tqdm(glob.glob(key)):
             subset, speaker, uri, file = file_path.split('/')[-4:]
-            voxceleb.append({'filename': file, 'speaker_id': speaker, 'uri': uri, 'subset': subset, 'file_path': file_path})
-            speakers.add(speaker)
+            if '.wav' in file:
+                voxceleb.append({'filename': file, 'speaker_id': speaker, 'uri': uri, 'subset': subset, 'file_path': file_path})
+                speakers.add(speaker)
     print('Found {} files with {} different speakers.'.format(len(voxceleb), len(speakers)))
 
-    voxceleb_dev = [datum for datum in voxceleb if datum['subset']=='dev']
+    if sample:
+        voxceleb_dev = [datum for datum in voxceleb if datum['subset']=='sample_dev']
+    else:
+        voxceleb_dev = [datum for datum in voxceleb if datum['subset']=='dev']
     voxceleb_test = [datum for datum in voxceleb if datum['subset']=='test']
 
     # return voxceleb

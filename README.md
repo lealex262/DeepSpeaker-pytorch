@@ -27,4 +27,5 @@ Also, use the part of code:
    - Baseline code - Facenet pytorch implimetation
 - [hbredin's git repository](https://github.com/hbredin/pyannote-db-voxceleb)
    - Voxceleb Database reader
+- (https://github.com/qqueing/DeepSpeaker-pytorch)
 
