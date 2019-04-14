@@ -33,16 +33,21 @@ Also, use the part of code:
 ## How to Run
 Train
 
-'''bash
+```
 python train_triplet.py
-'''
+```
 
 Preprocessing
-'''bash
+
+```
+
 python train_triplet.py --makemfb
+
 python train_triplet.py --makeif
+
 python train_triplet.py --makemel
-'''
+
+```
 
 
 
