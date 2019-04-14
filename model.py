@@ -16,6 +16,8 @@ class PairwiseDistance(Function):
         diff = torch.abs(x1 - x2)
         out = torch.pow(diff, self.norm).sum(dim=1)
         return torch.pow(out + eps, 1. / self.norm)
+
+
 class TripletMarginLoss(Function):
     """Triplet loss function.
     """
@@ -98,16 +100,17 @@ class myResNet(nn.Module):
         self.conv2 = nn.Conv2d(64, 128, kernel_size=5, stride=2, padding=2,bias=False)
         self.bn2 = nn.BatchNorm2d(128)
         self.layer2 = self._make_layer(block, 128, layers[1])
+
         self.inplanes = 256
         self.conv3 = nn.Conv2d(128, 256, kernel_size=5, stride=2, padding=2,bias=False)
         self.bn3 = nn.BatchNorm2d(256)
         self.layer3 = self._make_layer(block, 256, layers[2])
+
         self.inplanes = 512
         self.conv4 = nn.Conv2d(256, 512, kernel_size=5, stride=2, padding=2,bias=False)
         self.bn4 = nn.BatchNorm2d(512)
         self.layer4 = self._make_layer(block, 512, layers[3])
 
-        
         self.avgpool = nn.AdaptiveAvgPool2d((1,None))
         self.fc = nn.Linear(512 * block.expansion, num_classes)
 
@@ -147,18 +150,11 @@ class myResNet(nn.Module):
         return x
 
 
-
-
-
 class DeepSpeakerModel(nn.Module):
-    def __init__(self,embedding_size,num_classes,feature_dim = 64):
+    def __init__(self, embedding_size, num_classes, feature_dim = 64):
         super(DeepSpeakerModel, self).__init__()
 
         self.embedding_size = embedding_size
-
-
-
-
         self.model = myResNet(BasicBlock, [1, 1, 1, 1])
         if feature_dim == 64:
             self.model.fc = nn.Linear(512*2, self.embedding_size)
@@ -167,10 +163,7 @@ class DeepSpeakerModel(nn.Module):
             self.model.fc = nn.Linear(256 * 5, self.embedding_size)
         self.model.classifier = nn.Linear(self.embedding_size, num_classes)
 
-
-
-
-    def l2_norm(self,input):
+    def l2_norm(self, input):
         input_size = input.size()
         buffer = torch.pow(input, 2)
 
@@ -178,7 +171,6 @@ class DeepSpeakerModel(nn.Module):
         norm = torch.sqrt(normp)
 
         _output = torch.div(input, norm.view(-1, 1).expand_as(input))
-
         output = _output.view(input_size)
 
         return output
@@ -208,19 +200,16 @@ class DeepSpeakerModel(nn.Module):
         x = self.model.avgpool(x)
         x = x.view(x.size(0), -1)
 
+        print(x.shape)
         x = self.model.fc(x)
         self.features = self.l2_norm(x)
         # Multiply by alpha = 10 as suggested in https://arxiv.org/pdf/1703.09507.pdf
         alpha=10
         self.features = self.features*alpha
 
-        #x = x.resize(int(x.size(0) / 17),17 , 512)
-        #self.features =torch.mean(x,dim=1)
-        #x = self.model.classifier(self.features)
         return self.features
 
     def forward_classifier(self, x):
         features = self.forward(x)
         res = self.model.classifier(features)
         return res
-

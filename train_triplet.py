@@ -20,9 +20,9 @@ from logger import Logger
 from DeepSpeakerDataset_dynamic import DeepSpeakerDataset
 from VoxcelebTestset import VoxcelebTestset
 from voxceleb_wav_reader import read_voxceleb_structure
-
+import constants as c
 from model import PairwiseDistance,TripletMarginLoss
-from audio_processing import toMFB, totensor, truncatedinput, tonormal, truncatedinputfromMFB, read_MFB,read_audio, mk_MFB
+from audio_processing import toMFB, totensor, truncatedinput, tonormal, truncatedinputfromMFB, read_npy, read_audio, mk_MFB
 
 # Training settings
 parser = argparse.ArgumentParser(description='PyTorch Speaker Recognition')
@@ -87,15 +87,21 @@ parser.add_argument('--log-interval', type=int, default=1, metavar='LI',
 
 # parser.add_argument('--mfb', action='store_true', default=True,
 #                     help='start from MFB file')
-parser.add_argument('--makemfb', action='store_true', default=False,
-                    help='need to make mfb file')
 parser.add_argument('--test-only', action='store_true', default=False,
                     help='whether to skip training and do testing only')
 parser.add_argument('--sample', action='store_true', default=False,
                     help='whether to smaller dataset for debugging')
 
 
+# Add Preprocessing Step
+parser.add_argument('--makemfb', action='store_true', default=False,
+                    help='need to make mfb file')
+parser.add_argument('--makemel', action='store_true', default=False,
+                    help='need to make mel file')
+parser.add_argument('--makeif', action='store_true', default=False,
+                    help='need to make if file')
 args = parser.parse_args()
+
 
 # set the device to use by setting CUDA_VISIBLE_DEVICES env variable in
 # order to prevent any memory allocation on unused GPUs
@@ -114,20 +120,15 @@ LOG_DIR = args.log_dir + '/run-optim_{}-n{}-lr{}-wd{}-m{}-embeddings{}-msceleb-a
     .format(args.optimizer, args.n_triplets, args.lr, args.wd,
             args.margin,args.embedding_size)
 
+
 # create logger
 logger = Logger(LOG_DIR)
-
-
 
 
 kwargs = {'num_workers': 0, 'pin_memory': True} if args.cuda else {}
 l2_dist = PairwiseDistance(2)
 
 print('==> Reading wav files')
-# voxceleb = read_voxceleb_structure(args.dataroot)
-# voxceleb_dev = [datum for datum in voxceleb if datum['subset']=='dev']
-# voxceleb_test = [datum for datum in voxceleb if datum['subset']=='test']
-
 voxceleb_dev, voxceleb_test = read_voxceleb_structure(args.dataroot, sample=args.sample)
 
 # generate_test_pair = not args.test_pairs_path
@@ -135,31 +136,38 @@ voxceleb_dev, voxceleb_test = read_voxceleb_structure(args.dataroot, sample=args
 #     args.test_pairs_path = os.path.join(args.dataroot, 'test_pairs.csv')
 # voxceleb = read_voxceleb_structure(args.dataroot, generate_test_pair=generate_test_pair)
 
+# Setup Workers
+MAX_THREAD_COUNT = 5
+# num_threads = min(MAX_THREAD_COUNT, os.cpu_count())
+import multiprocessing
+num_threads = min(MAX_THREAD_COUNT, multiprocessing.cpu_count())
+def parallel_function(f, sequence, num_threads=None):
+    from multiprocessing import Pool
+    pool = Pool(processes=num_threads)
+    result = pool.map(f, sequence)
+    cleaned = [x for x in result if x is not None]
+    pool.close()
+    pool.join()
+    return cleaned
+
 if args.makemfb:
-    #pbar = tqdm(voxceleb)
+    print('==> Started MFB')
     print('==> Started converting wav to npy')
-    # for datum in tqdm(voxceleb):
-    #     mk_MFB(datum['file_path'])
-    #     # mk_MFB((args.dataroot +'/voxceleb1_wav/' + datum['filename']+'.wav'))
-
-    def parallel_function(f, sequence, num_threads=None):
-        from multiprocessing import Pool
-        pool = Pool(processes=num_threads)
-        result = pool.map(f, sequence)
-        cleaned = [x for x in result if x is not None]
-        pool.close()
-        pool.join()
-        return cleaned
-
-    MAX_THREAD_COUNT = 5
-    # num_threads = min(MAX_THREAD_COUNT, os.cpu_count())
-    import multiprocessing
-    num_threads = min(MAX_THREAD_COUNT, multiprocessing.cpu_count())
     parallel_function(mk_MFB, [datum['file_path'] for datum in voxceleb_test], num_threads)
     print('===> Converting test set is done')
     if not args.test_only:
         parallel_function(mk_MFB, [datum['file_path'] for datum in voxceleb_dev], num_threads)
         print('===> Converting dev set is done')
+
+    print("==> Complete converting")
+elif args.makemel:
+    print('==> Started MEL')
+    print('==> Started converting wav to npy')
+
+    print("==> Complete converting")
+elif args.makeif:
+    print('==> Started IF')
+    print('==> Started converting wav to npy')
 
     print("==> Complete converting")
 
@@ -174,7 +182,7 @@ transform_test = transforms.Compose([
     totensor()
 ])
 
-file_loader = read_MFB
+file_loader = read_npy
 
 train_dir = DeepSpeakerDataset(voxceleb=voxceleb_dev,
                                dir=args.dataroot,
@@ -204,14 +212,13 @@ def main():
     # instantiate model and initialize weights
     # TODO(xin): IMPORTANT load num_classes from checkpoint
     model = DeepSpeakerModel(embedding_size=args.embedding_size,
-                             # num_classes=len(train_dir.classes))
-                             num_classes=5994)
+                             num_classes=len(train_dir.classes))
 
     if args.cuda:
         model.cuda()
 
     from torchsummary import summary
-    summary(model, (1, 64, 32))
+    summary(model, (1, c.NUM_FEATURES, c.NUM_FRAMES))
 
     optimizer = create_optimizer(model, args.lr)
 
@@ -227,7 +234,6 @@ def main():
             print('=> no checkpoint found at {}'.format(args.resume))
 
     start = args.start_epoch
-    #start = 0
     end = start + args.epochs
 
     train_loader = torch.utils.data.DataLoader(train_dir, batch_size=args.batch_size, shuffle=False, **kwargs)

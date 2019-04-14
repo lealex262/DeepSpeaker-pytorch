@@ -2,10 +2,7 @@ import os
 import torch.utils.data as data
 
 
-
-
-
-def get_test_paths(pairs_path,db_dir,file_ext="wav"):
+def get_test_paths(pairs_path,db_dir, file_ext="wav"):
 
     pairs = [line.strip().split() for line in open(pairs_path, 'r').readlines()]
     nrof_skipped_pairs = 0
@@ -27,6 +24,7 @@ def get_test_paths(pairs_path,db_dir,file_ext="wav"):
         print('Skipped %d image pairs' % nrof_skipped_pairs)
 
     return path_list
+
 
 class VoxcelebTestset(data.Dataset):
     '''
@@ -58,7 +56,7 @@ class VoxcelebTestset(data.Dataset):
             img = self.loader(img_path)
             return self.transform(img)
 
-        (path_1,path_2,issame) = self.validation_images[index]
+        (path_1, path_2, issame) = self.validation_images[index]
         img1, img2 = transform(path_1), transform(path_2)
         return img1, img2, issame
 

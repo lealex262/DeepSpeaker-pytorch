@@ -1,10 +1,11 @@
 import numpy as np
 from python_speech_features import fbank, delta
-
+import torch
 import constants as c
-
 import librosa
 import os
+import random
+
 
 def mk_MFB(filename, sample_rate=c.SAMPLE_RATE, use_delta = c.USE_DELTA, use_scale = c.USE_SCALE, use_logscale = c.USE_LOGSCALE, replace = False):
     if not replace and os.path.exists(filename.replace('.wav', '.npy')):
@@ -12,7 +13,6 @@ def mk_MFB(filename, sample_rate=c.SAMPLE_RATE, use_delta = c.USE_DELTA, use_sca
 
     audio, sr = librosa.load(filename, sr=sample_rate, mono=True)
     #audio = audio.flatten()
-
 
     filter_banks, energies = fbank(audio, samplerate=sample_rate, nfilt=c.FILTER_BANK, winlen=0.025)
 
@@ -32,17 +32,15 @@ def mk_MFB(filename, sample_rate=c.SAMPLE_RATE, use_delta = c.USE_DELTA, use_sca
         filter_banks = normalize_frames(filter_banks, Scale=use_scale)
         frames_features = filter_banks
 
-
-
     np.save(filename.replace('.wav', '.npy'), frames_features)
 
     return
 
-def read_MFB(filename):
-    #audio, sr = librosa.load(filename, sr=sample_rate, mono=True)
-    #audio = audio.flatten()
+
+def read_npy(filename):
     audio = np.load(filename.replace('.wav', '.npy'))
     return audio
+
 
 class truncatedinputfromMFB(object):
     """Rescales the input PIL.Image to the given 'size'.
@@ -77,16 +75,11 @@ class truncatedinputfromMFB(object):
         return np.array(network_inputs)
 
 
-
-
 def read_audio(filename, sample_rate=c.SAMPLE_RATE):
     audio, sr = librosa.load(filename, sr=sample_rate, mono=True)
     audio = audio.flatten()
     return audio
 
-#this is not good
-#def normalize_frames(m):
-#    return [(v - np.mean(v)) / (np.std(v) + 2e-12) for v in m]
 
 def normalize_frames(m,Scale=True):
     if Scale:
@@ -95,7 +88,7 @@ def normalize_frames(m,Scale=True):
         return (m - np.mean(m, axis=0))
 
 
-def pre_process_inputs(signal=np.random.uniform(size=32000), target_sample_rate=8000,use_delta = c.USE_DELTA):
+def pre_process_inputs(signal=np.random.uniform(size=32000), target_sample_rate=8000, use_delta = c.USE_DELTA):
     filter_banks, energies = fbank(signal, samplerate=target_sample_rate, nfilt=c.FILTER_BANK, winlen=0.025)
     delta_1 = delta(filter_banks, N=1)
     delta_2 = delta(delta_1, N=1)
@@ -110,18 +103,17 @@ def pre_process_inputs(signal=np.random.uniform(size=32000), target_sample_rate=
         frames_features = filter_banks
     num_frames = len(frames_features)
     network_inputs = []
-    """Too complicated
-    for j in range(c.NUM_PREVIOUS_FRAME, num_frames - c.NUM_NEXT_FRAME):
-        frames_slice = frames_features[j - c.NUM_PREVIOUS_FRAME:j + c.NUM_NEXT_FRAME]
-        #network_inputs.append(np.reshape(frames_slice, (32, 20, 3)))
-        network_inputs.append(frames_slice)
-        
-    """
-    import random
+
+    # for j in range(c.NUM_PREVIOUS_FRAME, num_frames - c.NUM_NEXT_FRAME):
+    #     frames_slice = frames_features[j - c.NUM_PREVIOUS_FRAME:j + c.NUM_NEXT_FRAME]
+    #     #network_inputs.append(np.reshape(frames_slice, (32, 20, 3)))
+    #     network_inputs.append(frames_slice)
+
     j = random.randrange(c.NUM_PREVIOUS_FRAME, num_frames - c.NUM_NEXT_FRAME)
     frames_slice = frames_features[j - c.NUM_PREVIOUS_FRAME:j + c.NUM_NEXT_FRAME]
     network_inputs.append(frames_slice)
     return np.array(network_inputs)
+
 
 class truncatedinput(object):
     """Rescales the input PIL.Image to the given 'size'.
@@ -160,7 +152,8 @@ class toMFB(object):
 
         output = pre_process_inputs(input, target_sample_rate=c.SAMPLE_RATE)
         return output
-import torch
+
+
 class totensor(object):
     """Rescales the input PIL.Image to the given 'size'.
     If 'size' is a 2-element tuple or list in the order of (width, height), it will be the exactly size to scale.
@@ -172,7 +165,6 @@ class totensor(object):
     """
 
 
-
     def __call__(self, pic):
         """
         Args:
@@ -182,11 +174,9 @@ class totensor(object):
             Tensor: Converted image.
         """
         if isinstance(pic, np.ndarray):
+
             # handle numpy array
-            #img = torch.from_numpy(pic.transpose((0, 2, 1)))
-            #return img.float()
             img = torch.FloatTensor(pic.transpose((0, 2, 1)))
-            #img = np.float32(pic.transpose((0, 2, 1)))
             return img
 
             #img = torch.from_numpy(pic)
@@ -200,6 +190,7 @@ class tonormal(object):
         self.mean = 0.013987
         self.var = 1.008
 
+
     def __call__(self, tensor):
         """
         Args:
@@ -212,6 +203,4 @@ class tonormal(object):
 
         print(self.mean)
         self.mean+=1
-        #for t, m, s in zip(tensor, self.mean, self.std):
-        #    t.sub_(m).div_(s)
         return tensor

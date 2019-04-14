@@ -1,8 +1,8 @@
-# Deep Speaker from Baidu Research -  Pytorch Implementation 
+# Deep Speaker from Baidu Research -  Pytorch Implementation
 
 This is a slightly modified pytorch implementation of the model(modified Resnet + triplet loss) presented by Baidu Research in [Deep Speaker: an End-to-End Neural Speaker Embedding System](https://arxiv.org/pdf/1705.02304.pdf).
 
-This code was tested using Voxceleb database. [Voxceleb database paper](https://www.robots.ox.ac.uk/~vgg/publications/2017/Nagrani17/nagrani17.pdf) shows shows 7.8% EER using CNN. But in my code can't reach that point.
+This code was tested using Voxceleb database. [Voxceleb database paper](https://www.robots.ox.ac.uk/~vgg/publications/2017/Nagrani17/nagrani17.pdf)
 
 
 ## Credits
@@ -27,5 +27,33 @@ Also, use the part of code:
    - Baseline code - Facenet pytorch implimetation
 - [hbredin's git repository](https://github.com/hbredin/pyannote-db-voxceleb)
    - Voxceleb Database reader
-- (https://github.com/qqueing/DeepSpeaker-pytorch)
+- [qqueing/s git repository](https://github.com/qqueing/DeepSpeaker-pytorch)
 
+
+## How to Run
+Train
+
+'''bash
+python train_triplet.py
+'''
+
+Preprocessing
+'''bash
+python train_triplet.py --makemfb
+python train_triplet.py --makeif
+python train_triplet.py --makemel
+'''
+
+
+
+Data Structure
+```
+dataroot
+└── dev
+    └── id #person
+        └── url
+            ├── .wav file
+            ├── .npy file
+└── Test
+└── dev
+```
