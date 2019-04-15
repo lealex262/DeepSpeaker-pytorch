@@ -8,6 +8,7 @@ import torchvision.transforms as transforms
 from torch.autograd import Variable
 import torch.backends.cudnn as cudnn
 import os
+import sys
 
 
 import numpy as np
@@ -48,7 +49,7 @@ parser.add_argument('--embedding-size', type=int, default=512, metavar='ES',
                     help='Dimensionality of the embedding')
 
 parser.add_argument('--batch-size', type=int, default=512, metavar='BS',
-                    help='input batch size for training (default: 128)')
+                    help='input batch size for training (default: 512)')
 parser.add_argument('--test-batch-size', type=int, default=64, metavar='BST',
                     help='input batch size for testing (default: 64)')
 parser.add_argument('--test-input-per-file', type=int, default=8, metavar='IPFT',
@@ -161,13 +162,31 @@ if args.makemfb:
 
     print("==> Complete converting")
 elif args.makemel:
+    ROOT_DIR = os.path.abspath("../")
+    sys.path.append(ROOT_DIR)
+    import preprocessing
+    
     print('==> Started MEL')
     print('==> Started converting wav to npy')
+    parallel_function(preprocessing.preprocess_mel, [datum['file_path'] for datum in voxceleb_test], num_threads)
+    print('===> Converting test set is done')
+    if not args.test_only:
+        parallel_function(preprocessing.preprocess_mel, [datum['file_path'] for datum in voxceleb_dev], num_threads)
+        print('===> Converting dev set is done')
 
     print("==> Complete converting")
 elif args.makeif:
+    ROOT_DIR = os.path.abspath("../")
+    sys.path.append(ROOT_DIR)
+    import preprocessing
+
     print('==> Started IF')
     print('==> Started converting wav to npy')
+    parallel_function(preprocessing.preprocess_if, [datum['file_path'] for datum in voxceleb_test], num_threads)
+    print('===> Converting test set is done')
+    if not args.test_only:
+        parallel_function(preprocessing.preprocess_if, [datum['file_path'] for datum in voxceleb_dev], num_threads)
+        print('===> Converting dev set is done')
 
     print("==> Complete converting")
 
@@ -219,6 +238,8 @@ def main():
 
     from torchsummary import summary
     summary(model, (1, c.NUM_FEATURES, c.NUM_FRAMES))
+    # # More detailed information on model
+    # print(model)
 
     optimizer = create_optimizer(model, args.lr)
 

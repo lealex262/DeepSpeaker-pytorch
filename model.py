@@ -156,7 +156,7 @@ class DeepSpeakerModel(nn.Module):
         super(DeepSpeakerModel, self).__init__()
 
         self.embedding_size = embedding_size
-        self.model = myResNet(BasicBlock, [1, 1, 1, 1])
+        self.model = myResNet(BasicBlock, [3, 3, 3, 3])
         if feature_dim == 64:
             num = int(math.ceil(c.NUM_FRAMES/16.0))
             self.model.fc = nn.Linear(512 * num, self.embedding_size)
