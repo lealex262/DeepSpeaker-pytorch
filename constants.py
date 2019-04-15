@@ -1,6 +1,5 @@
-
+# orig - prev - 9, next - 23
 NUM_PREVIOUS_FRAME = 9
-# NUM_PREVIOUS_FRAME = 13
 NUM_NEXT_FRAME = 23
 NUM_FEATURES = 64
 

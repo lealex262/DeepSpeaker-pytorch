@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import math
+import constants as c
 
 from torch.autograd import Function
 
@@ -111,7 +112,7 @@ class myResNet(nn.Module):
         self.bn4 = nn.BatchNorm2d(512)
         self.layer4 = self._make_layer(block, 512, layers[3])
 
-        self.avgpool = nn.AdaptiveAvgPool2d((1,None))
+        self.avgpool = nn.AdaptiveAvgPool2d((1, None))
         self.fc = nn.Linear(512 * block.expansion, num_classes)
 
         for m in self.modules():
@@ -157,8 +158,8 @@ class DeepSpeakerModel(nn.Module):
         self.embedding_size = embedding_size
         self.model = myResNet(BasicBlock, [1, 1, 1, 1])
         if feature_dim == 64:
-            self.model.fc = nn.Linear(512*2, self.embedding_size)
-            # self.model.fc = nn.Linear(512*4, self.embedding_size)
+            num = int(math.ceil(c.NUM_FRAMES/16.0))
+            self.model.fc = nn.Linear(512 * num, self.embedding_size)
         elif feature_dim == 40:
             self.model.fc = nn.Linear(256 * 5, self.embedding_size)
         self.model.classifier = nn.Linear(self.embedding_size, num_classes)
@@ -200,7 +201,6 @@ class DeepSpeakerModel(nn.Module):
         x = self.model.avgpool(x)
         x = x.view(x.size(0), -1)
 
-        print(x.shape)
         x = self.model.fc(x)
         self.features = self.l2_norm(x)
         # Multiply by alpha = 10 as suggested in https://arxiv.org/pdf/1703.09507.pdf
