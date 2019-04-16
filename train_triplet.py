@@ -1,29 +1,25 @@
-#from __future__ import print_function
-import argparse
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torchvision.transforms as transforms
-
 from torch.autograd import Variable
 import torch.backends.cudnn as cudnn
+
+import argparse
 import os
 import sys
 
-
 import numpy as np
 from tqdm import tqdm
-from model import DeepSpeakerModel
 from eval_metrics import evaluate
 from logger import Logger
 
-#from DeepSpeakerDataset_static import DeepSpeakerDataset
+from model import DeepSpeakerModel, PairwiseDistance, TripletMarginLoss
 from DeepSpeakerDataset_dynamic import DeepSpeakerDataset
 from VoxcelebTestset import VoxcelebTestset
 from voxceleb_wav_reader import read_voxceleb_structure
 import constants as c
-from model import PairwiseDistance,TripletMarginLoss
-from audio_processing import toMFB, totensor, truncatedinput, tonormal, truncatedinputfromMFB, read_npy, read_audio, mk_MFB
+from audio_processing import totensor, truncatedinputfromMFB, read_npy, mk_MFB, mk_mel, mk_if
 
 # Training settings
 parser = argparse.ArgumentParser(description='PyTorch Speaker Recognition')
@@ -32,42 +28,32 @@ parser.add_argument('--dataroot', type=str, default='audio/voxceleb1',
                     help='path to dataset')
 parser.add_argument('--test-pairs-path', type=str, default='audio/voxceleb1/veri_test.txt',
                     help='path to pairs file')
-
 parser.add_argument('--log-dir', default='./data/pytorch_speaker_logs',
                     help='folder to output model checkpoints')
-
-parser.add_argument('--resume',
-                    default=None,
-                    type=str, metavar='PATH',
+parser.add_argument('--resume', default=None, type=str, metavar='PATH',
                     help='path to latest checkpoint (default: none)')
 parser.add_argument('--start-epoch', default=1, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
 parser.add_argument('--epochs', type=int, default=50, metavar='E',
                     help='number of epochs to train (default: 10)')
+
 # Training options
 parser.add_argument('--embedding-size', type=int, default=512, metavar='ES',
                     help='Dimensionality of the embedding')
-
 parser.add_argument('--batch-size', type=int, default=512, metavar='BS',
                     help='input batch size for training (default: 512)')
 parser.add_argument('--test-batch-size', type=int, default=64, metavar='BST',
                     help='input batch size for testing (default: 64)')
 parser.add_argument('--test-input-per-file', type=int, default=8, metavar='IPFT',
                     help='input sample per file for testing (default: 8)')
-
-#parser.add_argument('--n-triplets', type=int, default=1000000, metavar='N',
 parser.add_argument('--n-triplets', type=int, default=1000000, metavar='N',
                     help='how many triplets will generate from the dataset')
-
 parser.add_argument('--margin', type=float, default=0.1, metavar='MARGIN',
                     help='the margin value for the triplet loss function (default: 1.0')
-
 parser.add_argument('--min-softmax-epoch', type=int, default=2, metavar='MINEPOCH',
                     help='minimum epoch for initial parameter using softmax (default: 2')
-
 parser.add_argument('--loss-ratio', type=float, default=2.0, metavar='LOSSRATIO',
                     help='the ratio softmax loss - triplet loss (default: 2.0')
-
 parser.add_argument('--lr', type=float, default=0.1, metavar='LR',
                     help='learning rate (default: 0.125)')
 parser.add_argument('--lr-decay', default=1e-4, type=float, metavar='LRD',
@@ -76,6 +62,7 @@ parser.add_argument('--wd', default=0.0, type=float,
                     metavar='W', help='weight decay (default: 0.0)')
 parser.add_argument('--optimizer', default='adagrad', type=str,
                     metavar='OPT', help='The optimizer to use (default: Adagrad)')
+
 # Device options
 parser.add_argument('--no-cuda', action='store_true', default=False,
                     help='enables CUDA training')
@@ -86,13 +73,11 @@ parser.add_argument('--seed', type=int, default=0, metavar='S',
 parser.add_argument('--log-interval', type=int, default=1, metavar='LI',
                     help='how many batches to wait before logging training status')
 
-# parser.add_argument('--mfb', action='store_true', default=True,
-#                     help='start from MFB file')
+# Testing Options
 parser.add_argument('--test-only', action='store_true', default=False,
                     help='whether to skip training and do testing only')
 parser.add_argument('--sample', action='store_true', default=False,
                     help='whether to smaller dataset for debugging')
-
 
 # Add Preprocessing Step
 parser.add_argument('--makemfb', action='store_true', default=False,
@@ -101,13 +86,13 @@ parser.add_argument('--makemel', action='store_true', default=False,
                     help='need to make mel file')
 parser.add_argument('--makeif', action='store_true', default=False,
                     help='need to make if file')
+
 args = parser.parse_args()
 
 
 # set the device to use by setting CUDA_VISIBLE_DEVICES env variable in
 # order to prevent any memory allocation on unused GPUs
 os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu_id
-
 args.cuda = not args.no_cuda and torch.cuda.is_available()
 np.random.seed(args.seed)
 
@@ -125,9 +110,8 @@ LOG_DIR = args.log_dir + '/run-optim_{}-n{}-lr{}-wd{}-m{}-embeddings{}-msceleb-a
 # create logger
 logger = Logger(LOG_DIR)
 
-
 kwargs = {'num_workers': 0, 'pin_memory': True} if args.cuda else {}
-l2_dist = PairwiseDistance(2)
+
 
 print('==> Reading wav files')
 voxceleb_dev, voxceleb_test = read_voxceleb_structure(args.dataroot, sample=args.sample)
@@ -162,62 +146,52 @@ if args.makemfb:
 
     print("==> Complete converting")
 elif args.makemel:
-    ROOT_DIR = os.path.abspath("../")
-    sys.path.append(ROOT_DIR)
-    import preprocessing
-    
     print('==> Started MEL')
     print('==> Started converting wav to npy')
-    parallel_function(preprocessing.preprocess_mel, [datum['file_path'] for datum in voxceleb_test], num_threads)
+    parallel_function(mk_mel, [datum['file_path'] for datum in voxceleb_test], num_threads)
     print('===> Converting test set is done')
     if not args.test_only:
-        parallel_function(preprocessing.preprocess_mel, [datum['file_path'] for datum in voxceleb_dev], num_threads)
+        parallel_function(mk_mel, [datum['file_path'] for datum in voxceleb_dev], num_threads)
         print('===> Converting dev set is done')
 
     print("==> Complete converting")
 elif args.makeif:
-    ROOT_DIR = os.path.abspath("../")
-    sys.path.append(ROOT_DIR)
-    import preprocessing
-
     print('==> Started IF')
     print('==> Started converting wav to npy')
-    parallel_function(preprocessing.preprocess_if, [datum['file_path'] for datum in voxceleb_test], num_threads)
+    parallel_function(mk_if, [datum['file_path'] for datum in voxceleb_test], num_threads)
     print('===> Converting test set is done')
     if not args.test_only:
-        parallel_function(preprocessing.preprocess_if, [datum['file_path'] for datum in voxceleb_dev], num_threads)
+        parallel_function(mk_if, [datum['file_path'] for datum in voxceleb_dev], num_threads)
         print('===> Converting dev set is done')
 
     print("==> Complete converting")
 
 
+# Data
 transform_train = transforms.Compose([
     truncatedinputfromMFB(),
     totensor()
 ])
-
 transform_test = transforms.Compose([
     truncatedinputfromMFB(input_per_file=args.test_input_per_file),
     totensor()
 ])
-
 file_loader = read_npy
-
 train_dir = DeepSpeakerDataset(voxceleb=voxceleb_dev,
                                dir=args.dataroot,
                                n_triplets=args.n_triplets,
                                loader=file_loader,
                                transform=transform_train)
-# del voxceleb
-del voxceleb_dev
-del voxceleb_test
-
 test_dir = VoxcelebTestset(dir=args.dataroot,
                            pairs_path=args.test_pairs_path,
                            loader=file_loader,
                            transform=transform_test)
+# del voxceleb
+del voxceleb_dev
+del voxceleb_test
 
-#qwer = test_dir.__getitem__(3)
+# Setup
+l2_dist = PairwiseDistance(2)
 
 
 def main():

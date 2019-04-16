@@ -40,15 +40,25 @@ python train_triplet.py
 Preprocessing
 
 ```
+Fliter Bank
 
 python train_triplet.py --makemfb
 
+
+Instantaneous Frequency
+
 python train_triplet.py --makeif
+
+
+Melspectrogram
 
 python train_triplet.py --makemel
 
 ```
 
+Data
+
+- Download Voxceleb1 at http://www.robots.ox.ac.uk/~vgg/data/voxceleb/
 
 
 Data Structure

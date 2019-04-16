@@ -3,17 +3,19 @@ from python_speech_features import fbank, delta
 import torch
 import constants as c
 import librosa
+from librosa.feature import melspectrogram
+from librosa.core import ifgram
+
 import os
 import random
 
 
-def mk_MFB(filename, sample_rate=c.SAMPLE_RATE, use_delta = c.USE_DELTA, use_scale = c.USE_SCALE, use_logscale = c.USE_LOGSCALE, replace = False):
+def mk_MFB(filename, sample_rate=c.SAMPLE_RATE, use_delta = c.USE_DELTA, use_scale = c.USE_SCALE, use_logscale = c.USE_LOGSCALE, replace = True):
     if not replace and os.path.exists(filename.replace('.wav', '.npy')):
         return
 
+    # Process
     audio, sr = librosa.load(filename, sr=sample_rate, mono=True)
-    #audio = audio.flatten()
-
     filter_banks, energies = fbank(audio, samplerate=sample_rate, nfilt=c.FILTER_BANK, winlen=0.025)
 
     if use_logscale:
@@ -32,9 +34,39 @@ def mk_MFB(filename, sample_rate=c.SAMPLE_RATE, use_delta = c.USE_DELTA, use_sca
         filter_banks = normalize_frames(filter_banks, Scale=use_scale)
         frames_features = filter_banks
 
+    # Save
     np.save(filename.replace('.wav', '.npy'), frames_features)
-
     return
+
+
+def mk_mel(filename, sample_rate=c.SAMPLE_RATE, replace = True):
+    if not replace and os.path.exists(filename.replace('.wav', '.npy')):
+        return
+
+    # Process
+    audio, sr = librosa.load(filename, sr=sample_rate, mono=True)
+    gram = melspectrogram(y=audio, sr=sample_rate, n_mels=c.MEL_FEATURES).astype(np.float16)
+    gram = gram.transpose()
+
+    # Save
+    np.save(filename.replace('.wav', '.npy'), gram)
+    return
+
+
+def mk_if(filename, sample_rate=c.SAMPLE_RATE, replace = True):
+    if not replace and os.path.exists(filename.replace('.wav', '.npy')):
+        return
+
+    # Process
+    audio, sr = librosa.load(filename, sr=sample_rate, mono=True)
+    gram = ifgram(y=audio, sr=sample_rate, n_fft=(c.IF_FEATURES - 1) * 2)[0]
+    gram = gram.transpose()
+    print(gram.shape)
+
+    # Save
+    np.save(filename.replace('.wav', '.npy'), gram)
+    return
+
 
 
 def read_npy(filename):
@@ -132,7 +164,6 @@ class truncatedinput(object):
         if want_size > len(input):
             output = np.zeros((want_size,))
             output[0:len(input)] = input
-            #print("biho check")
             return output
         else:
             return input[0:want_size]
@@ -178,9 +209,6 @@ class totensor(object):
             # handle numpy array
             img = torch.FloatTensor(pic.transpose((0, 2, 1)))
             return img
-
-            #img = torch.from_numpy(pic)
-            # backward compatibility
 
 
 class tonormal(object):
