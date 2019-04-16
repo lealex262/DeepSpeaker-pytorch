@@ -35,14 +35,14 @@ parser.add_argument('--resume', default=None, type=str, metavar='PATH',
                     help='path to latest checkpoint (default: none)')
 parser.add_argument('--start-epoch', default=1, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
-parser.add_argument('--epochs', type=int, default=50, metavar='E',
-                    help='number of epochs to train (default: 10)')
+parser.add_argument('--epochs', type=int, default=25, metavar='E',
+                    help='number of epochs to train (default: 25)')
 
 # Training options
 parser.add_argument('--embedding-size', type=int, default=512, metavar='ES',
                     help='Dimensionality of the embedding')
-parser.add_argument('--batch-size', type=int, default=512, metavar='BS',
-                    help='input batch size for training (default: 512)')
+parser.add_argument('--batch-size', type=int, default=64, metavar='BS',
+                    help='input batch size for training (default: 64)')
 parser.add_argument('--test-batch-size', type=int, default=64, metavar='BST',
                     help='input batch size for testing (default: 64)')
 parser.add_argument('--test-input-per-file', type=int, default=8, metavar='IPFT',
@@ -50,9 +50,9 @@ parser.add_argument('--test-input-per-file', type=int, default=8, metavar='IPFT'
 parser.add_argument('--n-triplets', type=int, default=1000000, metavar='N',
                     help='how many triplets will generate from the dataset')
 parser.add_argument('--margin', type=float, default=0.1, metavar='MARGIN',
-                    help='the margin value for the triplet loss function (default: 1.0')
-parser.add_argument('--min-softmax-epoch', type=int, default=2, metavar='MINEPOCH',
-                    help='minimum epoch for initial parameter using softmax (default: 2')
+                    help='the margin value for the triplet loss function (default: 1.0)')
+parser.add_argument('--min-softmax-epoch', type=int, default=10, metavar='MINEPOCH',
+                    help='minimum epoch for initial parameter using softmax (default: 10)')
 parser.add_argument('--loss-ratio', type=float, default=1.0, metavar='LOSSRATIO',
                     help='the ratio softmax loss - triplet loss (default: 1.0')
 parser.add_argument('--lr', type=float, default=0.1, metavar='LR',
@@ -61,8 +61,8 @@ parser.add_argument('--lr-decay', default=1e-4, type=float, metavar='LRD',
                     help='learning rate decay ratio (default: 1e-4')
 parser.add_argument('--wd', default=0.0, type=float,
                     metavar='W', help='weight decay (default: 0.0)')
-parser.add_argument('--optimizer', default='adagrad', type=str,
-                    metavar='OPT', help='The optimizer to use (default: Adagrad)')
+parser.add_argument('--optimizer', default='sgd', type=str,
+                    metavar='OPT', help='The optimizer to use (default: sgd)')
 parser.add_argument('--distance', default='CosineSimilarity', type=str,
                     help='CosineSimilarity is default to match research paper (also accepts pairwise_distance)')
 
@@ -433,7 +433,7 @@ def create_optimizer(model, new_lr):
     # setup optimizer
     if args.optimizer == 'sgd':
         optimizer = optim.SGD(model.parameters(), lr=new_lr,
-                              momentum=0.9, dampening=0.9,
+                              momentum=0.99, dampening=0.9,
                               weight_decay=args.wd)
     elif args.optimizer == 'adam':
         optimizer = optim.Adam(model.parameters(), lr=new_lr,
