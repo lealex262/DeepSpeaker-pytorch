@@ -4,6 +4,7 @@ import torch.optim as optim
 import torchvision.transforms as transforms
 from torch.autograd import Variable
 import torch.backends.cudnn as cudnn
+from torch.nn.functional import pairwise_distance, cosine_similarity
 
 import argparse
 import os
@@ -14,7 +15,7 @@ from tqdm import tqdm
 from eval_metrics import evaluate
 from logger import Logger
 
-from model import DeepSpeakerModel, PairwiseDistance, TripletMarginLoss
+from model import DeepSpeakerModel, TripletMarginLoss, distance
 from DeepSpeakerDataset_dynamic import DeepSpeakerDataset
 from VoxcelebTestset import VoxcelebTestset
 from voxceleb_wav_reader import read_voxceleb_structure
@@ -52,8 +53,8 @@ parser.add_argument('--margin', type=float, default=0.1, metavar='MARGIN',
                     help='the margin value for the triplet loss function (default: 1.0')
 parser.add_argument('--min-softmax-epoch', type=int, default=2, metavar='MINEPOCH',
                     help='minimum epoch for initial parameter using softmax (default: 2')
-parser.add_argument('--loss-ratio', type=float, default=2.0, metavar='LOSSRATIO',
-                    help='the ratio softmax loss - triplet loss (default: 2.0')
+parser.add_argument('--loss-ratio', type=float, default=1.0, metavar='LOSSRATIO',
+                    help='the ratio softmax loss - triplet loss (default: 1.0')
 parser.add_argument('--lr', type=float, default=0.1, metavar='LR',
                     help='learning rate (default: 0.125)')
 parser.add_argument('--lr-decay', default=1e-4, type=float, metavar='LRD',
@@ -62,6 +63,8 @@ parser.add_argument('--wd', default=0.0, type=float,
                     metavar='W', help='weight decay (default: 0.0)')
 parser.add_argument('--optimizer', default='adagrad', type=str,
                     metavar='OPT', help='The optimizer to use (default: Adagrad)')
+parser.add_argument('--distance', default='CosineSimilarity', type=str,
+                    help='CosineSimilarity is default to match research paper (also accepts pairwise_distance)')
 
 # Device options
 parser.add_argument('--no-cuda', action='store_true', default=False,
@@ -190,9 +193,6 @@ test_dir = VoxcelebTestset(dir=args.dataroot,
 del voxceleb_dev
 del voxceleb_test
 
-# Setup
-l2_dist = PairwiseDistance(2)
-
 
 def main():
     # Views the training images and displays the distance on anchor-negative and anchor-positive
@@ -282,12 +282,12 @@ def train(train_loader, model, optimizer, epoch):
                         loss.data[0]))
 
 
-            dists = l2_dist.forward(out_a,out_n) #torch.sqrt(torch.sum((out_a - out_n) ** 2, 1))  # euclidean distance
+            dists = distance(out_a, out_n, args.distance)
             distances.append(dists.data.cpu().numpy())
             labels.append(np.zeros(dists.size(0)))
 
 
-            dists = l2_dist.forward(out_a,out_p)#torch.sqrt(torch.sum((out_a - out_p) ** 2, 1))  # euclidean distance
+            dists = distance(out_a, out_p, args.distance)
             distances.append(dists.data.cpu().numpy())
             labels.append(np.ones(dists.size(0)))
 
@@ -295,8 +295,8 @@ def train(train_loader, model, optimizer, epoch):
 
         else:
         # Choose the hard negatives
-            d_p = l2_dist.forward(out_a, out_p)
-            d_n = l2_dist.forward(out_a, out_n)
+            d_p = distance(out_a, out_p, args.distance)
+            d_n = distance(out_a, out_n, args.distance)
             all = (d_n - d_p < args.margin).cpu().data.numpy().flatten()
 
             # log loss value for mini batch.
@@ -367,12 +367,12 @@ def train(train_loader, model, optimizer, epoch):
                         loss.data,len(hard_triplets[0])))
 
 
-            dists = l2_dist.forward(out_selected_a,out_selected_n) #torch.sqrt(torch.sum((out_a - out_n) ** 2, 1))  # euclidean distance
+            dists = distance(out_selected_a, out_selected_n, args.distance)
             distances.append(dists.data.cpu().numpy())
             labels.append(np.zeros(dists.size(0)))
 
 
-            dists = l2_dist.forward(out_selected_a,out_selected_p)#torch.sqrt(torch.sum((out_a - out_p) ** 2, 1))  # euclidean distance
+            dists = distance(out_selected_a, out_selected_p, args.distance)
             distances.append(dists.data.cpu().numpy())
             labels.append(np.ones(dists.size(0)))
 
@@ -409,7 +409,7 @@ def test(test_loader, model, epoch):
 
         # compute output
         out_a, out_p = model(data_a), model(data_p)
-        dists = l2_dist.forward(out_a,out_p)#torch.sqrt(torch.sum((out_a - out_p) ** 2, 1))  # euclidean distance
+        dists = distance(out_a,out_p, args.distance)
         dists = dists.data.cpu().numpy()
         dists = dists.reshape(current_sample,args.test_input_per_file).mean(axis=1)
         distances.append(dists)
