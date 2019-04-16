@@ -2,6 +2,7 @@ import argparse
 import glob
 import os
 from tqdm import tqdm
+import fnmatch
 
 import torch
 import torch.optim as optim
@@ -9,8 +10,9 @@ from torch.autograd import Variable
 import torch.utils.data as data
 import torchvision.transforms as transforms
 
-from audio_processing import toMFB, totensor, truncatedinput,read_audio
+from audio_processing import totensor, truncatedinputfromMFB, read_npy
 from model import DeepSpeakerModel
+
 
 class EmbedSet(data.Dataset):
     def __init__(self, audio_path, loader, transform=None):
@@ -18,12 +20,11 @@ class EmbedSet(data.Dataset):
         # self.audio_list = list(glob.glob(os.path.join(audio_path, '*.wav')))
 
         self.audio_list = []
-        for root, dirs, files in os.walk(audio_path):
-            for file_name in files:
-                if os.path.splitext(file_name)[-1] != '.wav':
-                    continue
-                file_path = os.path.join(root, file_name)
-                self.audio_list.append(file_path)
+        print('search')
+        for root, dirnames, filenames in os.walk(audio_path):
+            print(filenames)
+            for filename in fnmatch.filter(filenames, '*.npy'):
+                self.audio_list.append(os.path.join(root, filename))
         print('>>>>>>>>>', self.audio_list)
 
         self.loader = loader
@@ -38,98 +39,96 @@ class EmbedSet(data.Dataset):
     def __len__(self):
         return len(self.audio_list)
 
+
 def parse_arguments():
     parser = argparse.ArgumentParser(description='PyTorch Speaker Recognition')
     parser.add_argument('--audio-path',
                         type=str,
-                        default='/data5/xin/voxceleb/raw_data/test/id00017/01dfn2spqyE/',
+                        default='audio/voxceleb1/sample_dev/id10004/6WxS8rpNjmk',
                         help='path to dataset')
-    parser.add_argument('--no-cuda',
-                        action='store_true',
-                        default=False,
-                        help='disables CUDA training')
     parser.add_argument('--checkpoint',
                         default=None,
                         type=str,
                         metavar='PATH',
-                        required=True,
                         help='path to latest checkpoint (default: none)')
-    # parser.add_argument('--batch-size', type=int, default=10, metavar='BS',
-    #                     help='input batch size for training (default: 512)')
-    # parser.add_argument('--embedding-size', type=int, default=512, metavar='ES',
-    #                     help='Dimensionality of the embedding')
-    # parser.add_argument('--num-classes', type=int, default=5994, metavar='ES',
-    #                     help='Number of classes')
+
+    # Model
+    parser.add_argument('--embedding-size', type=int, default=512, metavar='ES',
+                    help='Dimensionality of the embedding')
+    
+    # Device options
+    parser.add_argument('--no-cuda', action='store_true', default=False,
+                        help='enables CUDA training')
+    parser.add_argument('--gpu-id', default='3', type=str,
+                        help='id(s) for CUDA_VISIBLE_DEVICES')
+    parser.add_argument('--log-interval', type=int, default=1, metavar='LI',
+                        help='how many batches to wait before logging training status')
 
     args = parser.parse_args()
-    args.cuda = not args.no_cuda
 
-    """ TODO(xin)
-    - Right now embedding_size is hardcoded in log_dir name
-    # LOG_DIR = args.log_dir + '/run-optim_{}-n{}-lr{}-wd{}-m{}-embeddings{}-msceleb-alpha10'\
-    #     .format(args.optimizer, args.n_triplets, args.lr, args.wd,
-    #             args.margin,args.embedding_size)
-    - Should move to model state_dict
-    """
-    args.embedding_size = int(os.path.dirname(args.checkpoint).split('-')[-3].split('embeddings')[-1].strip())
+    # Cuda
+    os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu_id
+    args.cuda = not args.no_cuda and torch.cuda.is_available()
 
+    # Params
+    if args.checkpoint != None:
+        args.embedding_size = int(os.path.dirname(args.checkpoint).split('-')[7].split('embeddings')[-1].strip())
+        args.num_classes = int(os.path.dirname(args.checkpoint).split('-')[10].split('embeddings')[-1].strip())
     # TODO(xin): Support batching
     args.batch_size = 1
 
-    # TODO(xin): Add num_classes to state_dict
-    args.num_classes = 5994
-
     return args
 
-# def create_optimizer(model, new_lr):
-#     if args.optimizer == 'sgd':
-#         optimizer = optim.SGD(model.parameters(), lr=new_lr,
-#                               momentum=0.9, dampening=0.9,
-#                               weight_decay=args.wd)
-#     elif args.optimizer == 'adam':
-#         optimizer = optim.Adam(model.parameters(), lr=new_lr,
-#                                weight_decay=args.wd)
-#     elif args.optimizer == 'adagrad':
-#         optimizer = optim.Adagrad(model.parameters(),
-#                                   lr=new_lr,
-#                                   lr_decay=args.lr_decay,
-#                                   weight_decay=args.wd)
-#     return optimizer
+
+def load_embedder(checkpoint_path = None, embedding_size=512, num_classes=5994, cuda = False):
+    model = DeepSpeakerModel(embedding_size=embedding_size,
+                             num_classes=num_classes)
+    if cuda:
+        model.cuda()
+
+    if checkpoint_path != None:
+        # instantiate model and initialize weights
+        package = torch.load(checkpoint_path)
+
+        model.load_state_dict(package['state_dict'])
+        model.eval()
+
+    return model
+
+
+def embedding_data_loader(audio_path, batch_size, cuda = False):
+    # Transformations
+    transform_embed = transforms.Compose([
+    truncatedinputfromMFB(),
+    totensor()
+    ])
+
+    # Reader
+    file_loader = read_npy
+    inference_set = EmbedSet(audio_path=audio_path,
+                             loader=file_loader,
+                             transform=transform_embed)
+
+    kwargs = {'num_workers': 0, 'pin_memory': True} if cuda else {}
+    inference_loader = torch.utils.data.DataLoader(inference_set, batch_size=batch_size, shuffle=False, **kwargs)
+
+    return inference_loader
+
 
 def main():
     args = parse_arguments()
     print('==> args: {}'.format(args))
 
-    transform_embed = transforms.Compose([
-        truncatedinput(),
-        toMFB(),
-        totensor(),
-    ])
+    # Dataloaders
+    inference_loader = embedding_data_loader(args.audio_path, args.batch_size, args.cuda)
 
-    file_loader = read_audio
+    # Load Model
+    if args.checkpoint != None:
+        model = load_embedder(args.checkpoint, args.embedding_size, args.num_classes, args.cuda)
+    else:
+        model = load_embedder()
 
-    inference_set = EmbedSet(audio_path=args.audio_path,
-                             loader=file_loader,
-                             transform=transform_embed)
-
-    kwargs = {'num_workers': 0, 'pin_memory': True} if args.cuda else {}
-    inference_loader = torch.utils.data.DataLoader(inference_set, batch_size=args.batch_size, shuffle=False, **kwargs)
-
-    # instantiate model and initialize weights
-    package = torch.load(args.checkpoint)
-    # print('==> package: {}'.format(package))
-    model = DeepSpeakerModel(embedding_size=args.embedding_size,
-                             num_classes=args.num_classes)
-    if args.cuda:
-        model.cuda()
-
-    # optimizer = create_optimizer(model, args.lr)
-
-    model.load_state_dict(package['state_dict'])
-    # optimizer.load_state_dict(package['optimizer'])
-
-    model.eval()
-
+    # Output
     pbar = tqdm(enumerate(inference_loader))
     for batch_idx, data in pbar:
         if args.cuda:
@@ -138,8 +137,11 @@ def main():
         out = model(data)
 
         features = out.detach().cpu().numpy()
-        print('>>>>>>>>>>>>>>> features', features)
+        print('>>>>>>>>>>>>>>> features')
+        print(features.shape)
+        print(features)
         assert features.shape == (1, args.embedding_size)
+
 
 if __name__ == '__main__':
     main()

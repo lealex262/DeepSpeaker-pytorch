@@ -105,13 +105,6 @@ if not os.path.exists(args.log_dir):
 if args.cuda:
     cudnn.benchmark = True
 
-LOG_DIR = args.log_dir + '/run-optim_{}-n{}-lr{}-wd{}-m{}-embeddings{}-msceleb-alpha10'\
-    .format(args.optimizer, args.n_triplets, args.lr, args.wd,
-            args.margin,args.embedding_size)
-
-
-# create logger
-logger = Logger(LOG_DIR)
 
 kwargs = {'num_workers': 0, 'pin_memory': True} if args.cuda else {}
 
@@ -192,6 +185,13 @@ test_dir = VoxcelebTestset(dir=args.dataroot,
 # del voxceleb
 del voxceleb_dev
 del voxceleb_test
+
+
+# create logger
+LOG_DIR = args.log_dir + '/run-optim_{}-n{}-lr{}-wd{}-m{}-embeddings{}-msceleb-alpha10-num_classes{}'\
+    .format(args.optimizer, args.n_triplets, args.lr, args.wd,
+            args.margin,args.embedding_size,len(train_dir.classes))
+logger = Logger(LOG_DIR)
 
 
 def main():
