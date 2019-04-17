@@ -69,6 +69,6 @@ dataroot
         └── url
             ├── .wav file
             ├── .npy file
-└── Test
-└── dev
+└── test
+└── samle_dev
 ```
