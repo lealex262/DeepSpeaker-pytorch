@@ -250,12 +250,10 @@ def train(train_loader, model, optimizer, epoch):
     labels, distances = [], []
 
     pbar = tqdm(enumerate(train_loader))
-    for batch_idx, (data_a, data_p, data_n,label_p,label_n) in pbar:
+    for batch_idx, (data_a, data_p, data_n, label_p, label_n) in pbar:
         #print("on training{}".format(epoch))
         if args.cuda:
-            data_a, data_p = data_a.cuda(), data_p.cuda()
-        data_a, data_p, data_n = Variable(data_a), Variable(data_p), \
-                                 Variable(data_n)
+            data_a, data_p, data_n = data_a.cuda(), data_p.cuda(), data_n.cuda()
 
         # compute output
         out_a, out_p, out_n = model(data_a), model(data_p), model(data_n)

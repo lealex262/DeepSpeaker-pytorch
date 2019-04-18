@@ -71,12 +71,18 @@ def parse_arguments():
 
     # Params
     if args.checkpoint != None:
-        args.embedding_size = int(os.path.dirname(args.checkpoint).split('-')[7].split('embeddings')[-1].strip())
-        args.num_classes = int(os.path.dirname(args.checkpoint).split('-')[10].split('embeddings')[-1].strip())
+        args.embedding_size, args.num_classes = parse_params(args.checkpoint)
     # TODO(xin): Support batching
     args.batch_size = 1
 
     return args
+
+
+def parse_params(checkpoint_folder):
+    embedding_size = int(os.path.dirname(checkpoint_folder).split('-')[7].split('embeddings')[-1].strip())
+    num_classes = int(os.path.dirname(checkpoint_folder).split('-')[10].split('embeddings')[-1].strip())
+    return embedding_size, num_classes
+
 
 
 def load_embedder(checkpoint_path = None, embedding_size=512, num_classes=5994, cuda = False):
