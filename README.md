@@ -71,4 +71,5 @@ dataroot
             ├── .npy file
 └── test
 └── samle_dev
+└── veri_test.txt
 ```

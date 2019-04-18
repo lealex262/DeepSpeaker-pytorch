@@ -20,7 +20,6 @@ class EmbedSet(data.Dataset):
         # self.audio_list = list(glob.glob(os.path.join(audio_path, '*.wav')))
 
         self.audio_list = []
-        print('search')
         for root, dirnames, filenames in os.walk(audio_path):
             print(filenames)
             for filename in fnmatch.filter(filenames, '*.npy'):

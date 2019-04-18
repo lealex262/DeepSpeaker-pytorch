@@ -7,10 +7,7 @@ def evaluate(distances, labels):
     thresholds = np.arange(0, 30, 0.01)
     tpr, fpr, accuracy = calculate_roc(thresholds, distances,
         labels)
-    thresholds = np.arange(0, 30, 0.001)
-    val,  far = calculate_val(thresholds, distances,
-        labels, 1e-3)
-    return tpr, fpr, accuracy, val,  far
+    return tpr, fpr, accuracy
 
 
 def calculate_roc(thresholds, distances, labels):

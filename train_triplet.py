@@ -381,7 +381,7 @@ def train(train_loader, model, optimizer, epoch):
     labels = np.array([sublabel for label in labels for sublabel in label])
     distances = np.array([subdist for dist in distances for subdist in dist])
 
-    tpr, fpr, accuracy, val, far = evaluate(distances,labels)
+    tpr, fpr, accuracy = evaluate(distances, labels)
     print('\33[91mTrain set: Accuracy: {:.8f}\n\33[0m'.format(np.mean(accuracy)))
     logger.log_value('Train Accuracy', np.mean(accuracy))
 
@@ -424,7 +424,7 @@ def test(test_loader, model, epoch):
     labels = np.array([sublabel for label in labels for sublabel in label])
     distances = np.array([subdist for dist in distances for subdist in dist])
 
-    tpr, fpr, accuracy, val,  far = evaluate(distances,labels)
+    tpr, fpr, accuracy = evaluate(distances, labels)
     print('\33[91mTest set: Accuracy: {:.8f}\n\33[0m'.format(np.mean(accuracy)))
     logger.log_value('Test Accuracy', np.mean(accuracy))
 
