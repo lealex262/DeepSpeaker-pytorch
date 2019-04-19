@@ -267,9 +267,9 @@ def train(train_loader, model, optimizer, epoch):
             loss.backward()
             optimizer.step()
 
-            logger.log_value('selected_triplet_loss', triplet_loss.data[0]).step()
-            #logger.log_value('selected_cross_entropy_loss', cross_entropy_loss.data[0]).step()
-            logger.log_value('selected_total_loss', loss.data[0]).step()
+            logger.log_value('selected_triplet_loss', triplet_loss.data.item()).step()
+            #logger.log_value('selected_cross_entropy_loss', cross_entropy_loss.data.item()).step()
+            logger.log_value('selected_total_loss', loss.data.item()).step()
 
             if batch_idx % args.log_interval == 0:
                 pbar.set_description(
@@ -277,7 +277,7 @@ def train(train_loader, model, optimizer, epoch):
                         # epoch, batch_idx * len(data_a), len(train_loader.dataset),
                         epoch, batch_idx * len(data_a), len(train_loader) * len(data_a),
                         100. * batch_idx / len(train_loader),
-                        loss.data[0]))
+                        loss.data.item()))
 
 
             dists = distance(out_a, out_n, args.distance)
