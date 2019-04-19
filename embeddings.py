@@ -50,11 +50,15 @@ def parse_arguments():
                         type=str,
                         metavar='PATH',
                         help='path to latest checkpoint (default: none)')
+    parser.add_argument('--batch_size',
+                        default=1,
+                        type=int,
+                        help='batch-size (default: 1)')
 
     # Model
     parser.add_argument('--embedding-size', type=int, default=512, metavar='ES',
                     help='Dimensionality of the embedding')
-    
+
     # Device options
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='enables CUDA training')
@@ -72,8 +76,6 @@ def parse_arguments():
     # Params
     if args.checkpoint != None:
         args.embedding_size, args.num_classes = parse_params(args.checkpoint)
-    # TODO(xin): Support batching
-    args.batch_size = 1
 
     return args
 
@@ -85,7 +87,7 @@ def parse_params(checkpoint_folder):
 
 
 
-def load_embedder(checkpoint_path = None, embedding_size=512, num_classes=5994, cuda = False):
+def load_embedder(checkpoint_path = None, embedding_size = 512, num_classes = 5994, cuda = False):
     model = DeepSpeakerModel(embedding_size=embedding_size,
                              num_classes=num_classes)
     if cuda:
@@ -101,7 +103,7 @@ def load_embedder(checkpoint_path = None, embedding_size=512, num_classes=5994, 
     return model
 
 
-def embedding_data_loader(audio_path, batch_size, cuda = False):
+def embedding_data_loader(audio_path, batch_size =  1, cuda = False):
     # Transformations
     transform_embed = transforms.Compose([
     truncatedinputfromMFB(),
@@ -115,7 +117,7 @@ def embedding_data_loader(audio_path, batch_size, cuda = False):
                              transform=transform_embed)
 
     kwargs = {'num_workers': 0, 'pin_memory': True} if cuda else {}
-    inference_loader = torch.utils.data.DataLoader(inference_set, batch_size=batch_size, shuffle=False, **kwargs)
+    inference_loader = torch.utils.data.DataLoader(inference_set, batch_size = batch_size, shuffle = False, **kwargs)
 
     return inference_loader
 
@@ -142,12 +144,13 @@ def main():
         out = model(data)
 
         features = out.detach().cpu().numpy()
+        print('>>>>>>>>>>>>>>> data')
+        print(data.shape)
         print('>>>>>>>>>>>>>>> features')
         print(features.shape)
-        print(features)
-        assert features.shape == (1, args.embedding_size)
+        # print(features)
+        assert features.shape == (args.batch_size, args.embedding_size)
 
 
 if __name__ == '__main__':
     main()
-
