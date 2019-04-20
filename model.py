@@ -1,7 +1,10 @@
 import torch
 import math
 import numpy as np
-from . import constants as c
+try:
+    from . import constants as c
+except ValueError:
+    import constants as c
 
 import torch.nn as nn
 from torch.autograd import Function
