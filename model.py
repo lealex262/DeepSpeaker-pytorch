@@ -1,7 +1,7 @@
 import torch
 import math
 import numpy as np
-import constants as c
+from . import constants as c
 
 import torch.nn as nn
 from torch.autograd import Function
@@ -17,7 +17,7 @@ def distance(input1, input2, metric):
 
     elif metric == "PairwiseDistance":
         return pairwise_distance(input1, input2)
-    
+
     else:
         raise(RuntimeError(('Distance/Difference Metric Unknown')))
 

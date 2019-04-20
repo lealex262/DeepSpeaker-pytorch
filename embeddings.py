@@ -10,8 +10,8 @@ from torch.autograd import Variable
 import torch.utils.data as data
 import torchvision.transforms as transforms
 
-from audio_processing import totensor, truncatedinputfromMFB, read_npy
-from model import DeepSpeakerModel
+from .audio_processing import totensor, truncatedinputfromMFB, read_npy
+from .model import DeepSpeakerModel
 
 
 class EmbedSet(data.Dataset):

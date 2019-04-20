@@ -1,7 +1,7 @@
 import numpy as np
 from python_speech_features import fbank, delta
 import torch
-import constants as c
+from . import constants as c
 import librosa
 from librosa.feature import melspectrogram
 from librosa.core import ifgram

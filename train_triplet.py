@@ -12,15 +12,15 @@ import sys
 
 import numpy as np
 from tqdm import tqdm
-from eval_metrics import evaluate
-from logger import Logger
+from .eval_metrics import evaluate
+from .logger import Logger
 
-from model import DeepSpeakerModel, TripletMarginLoss, distance
-from DeepSpeakerDataset_dynamic import DeepSpeakerDataset
-from VoxcelebTestset import VoxcelebTestset
-from voxceleb_wav_reader import read_voxceleb_structure
-import constants as c
-from audio_processing import totensor, truncatedinputfromMFB, read_npy, mk_MFB, mk_mel, mk_if
+from .model import DeepSpeakerModel, TripletMarginLoss, distance
+from .DeepSpeakerDataset_dynamic import DeepSpeakerDataset
+from .VoxcelebTestset import VoxcelebTestset
+from .voxceleb_wav_reader import read_voxceleb_structure
+from . import constants as c
+from .audio_processing import totensor, truncatedinputfromMFB, read_npy, mk_MFB, mk_mel, mk_if
 
 # Training settings
 parser = argparse.ArgumentParser(description='PyTorch Speaker Recognition')
