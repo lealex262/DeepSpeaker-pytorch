@@ -10,8 +10,13 @@ from torch.autograd import Variable
 import torch.utils.data as data
 import torchvision.transforms as transforms
 
-from .audio_processing import totensor, truncatedinputfromMFB, read_npy
-from .model import DeepSpeakerModel
+try:
+    from .audio_processing import totensor, truncatedinputfromMFB, read_npy
+    from .model import DeepSpeakerModel
+except ValueError:
+    from audio_processing import totensor, truncatedinputfromMFB, read_npy
+    from model import DeepSpeakerModel
+
 
 
 class EmbedSet(data.Dataset):
@@ -58,6 +63,8 @@ def parse_arguments():
     # Model
     parser.add_argument('--embedding-size', type=int, default=512, metavar='ES',
                     help='Dimensionality of the embedding')
+    parser.add_argument('--num-features', type=int, default=64,
+                    help='Dimensionality of the embedding')
 
     # Device options
     parser.add_argument('--no-cuda', action='store_true', default=False,
@@ -75,19 +82,19 @@ def parse_arguments():
 
     # Params
     if args.checkpoint != None:
-        args.embedding_size, args.num_classes = parse_params(args.checkpoint)
+        args.embedding_size, args.num_classes, args.num_features = parse_params(args.checkpoint)
 
     return args
 
 
 def parse_params(checkpoint_folder):
-    embedding_size = int(os.path.dirname(checkpoint_folder).split('-')[7].split('embeddings')[-1].strip())
-    num_classes = int(os.path.dirname(checkpoint_folder).split('-')[10].split('embeddings')[-1].strip())
-    return embedding_size, num_classes
+    embedding_size = int(os.path.dirname(checkpoint_folder).split('-')[6].split('embeddings')[-1].strip())
+    num_classes = int(os.path.dirname(checkpoint_folder).split('-')[9].split('num_classes')[-1].strip())
+    num_features = int(os.path.dirname(checkpoint_folder).split('-')[10].split('num_features')[-1].strip())
+    return embedding_size, num_classes, num_features
 
 
-
-def load_embedder(checkpoint_path = None, embedding_size = 512, num_classes = 5994, cuda = False):
+def load_embedder(checkpoint_path = None, embedding_size = 512, num_classes = 5994, num_features=64, cuda = False, allow_permute=False):
     model = DeepSpeakerModel(embedding_size=embedding_size,
                              num_classes=num_classes)
     if cuda:
@@ -100,7 +107,7 @@ def load_embedder(checkpoint_path = None, embedding_size = 512, num_classes = 59
         model.load_state_dict(package['state_dict'])
         model.eval()
 
-    return model
+    return Embedder(model, num_features, allow_permute=allow_permute)
 
 
 def embedding_data_loader(audio_path, batch_size =  1, cuda = False):
@@ -120,6 +127,37 @@ def embedding_data_loader(audio_path, batch_size =  1, cuda = False):
     inference_loader = torch.utils.data.DataLoader(inference_set, batch_size = batch_size, shuffle = False, **kwargs)
 
     return inference_loader
+
+
+"""
+New model that accepts input as (Batch Size x 1 x Frames x Features)
+"""
+class Embedder(torch.nn.Module):
+    def __init__(self, model, num_features, check_dim=True, allow_permute=False):
+        """
+        Para: the embedding model
+        """
+        super(Embedder, self).__init__()
+        self.model = model
+        self.num_features = num_features
+        self.check_dim = check_dim
+        self.allow_permute = allow_permute
+
+    def forward(self, x):
+        """
+        Input: (Batch Size x 1 x Frames x Features)
+        """
+        if self.allow_permute or (self.check_dim and self.num_features == x.shape[3]):
+            x = x.permute(0, 1, 3, 2)
+        return self.model.forward(x)
+
+    def forward_classifier(self, x):
+        """
+        Input: (Batch Size x 1 x Frames x Features)
+        """
+        if self.allow_permute or (self.check_dim and self.num_features == x.shape[3]):
+            x = x.permute(0, 1, 3, 2)
+        return self.model.forward_classifier(x)
 
 
 def main():
@@ -144,6 +182,7 @@ def main():
         out = model(data)
 
         features = out.detach().cpu().numpy()
+        print('')
         print('>>>>>>>>>>>>>>> data')
         print(data.shape)
         print('>>>>>>>>>>>>>>> features')

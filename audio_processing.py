@@ -1,7 +1,10 @@
 import numpy as np
 from python_speech_features import fbank, delta
 import torch
-from . import constants as c
+try:
+    from . import constants as c
+except ValueError:
+    import constants as c
 import librosa
 from librosa.feature import melspectrogram
 from librosa.core import ifgram

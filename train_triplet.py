@@ -12,15 +12,27 @@ import sys
 
 import numpy as np
 from tqdm import tqdm
-from .eval_metrics import evaluate
-from .logger import Logger
+try:
+    from .eval_metrics import evaluate
+    from .logger import Logger
 
-from .model import DeepSpeakerModel, TripletMarginLoss, distance
-from .DeepSpeakerDataset_dynamic import DeepSpeakerDataset
-from .VoxcelebTestset import VoxcelebTestset
-from .voxceleb_wav_reader import read_voxceleb_structure
-from . import constants as c
-from .audio_processing import totensor, truncatedinputfromMFB, read_npy, mk_MFB, mk_mel, mk_if
+    from .model import DeepSpeakerModel, TripletMarginLoss, distance
+    from .DeepSpeakerDataset_dynamic import DeepSpeakerDataset
+    from .VoxcelebTestset import VoxcelebTestset
+    from .voxceleb_wav_reader import read_voxceleb_structure
+    from . import constants as c
+    from .audio_processing import totensor, truncatedinputfromMFB, read_npy, mk_MFB, mk_mel, mk_if
+except ValueError:
+    from eval_metrics import evaluate
+    from logger import Logger
+
+    from model import DeepSpeakerModel, TripletMarginLoss, distance
+    from DeepSpeakerDataset_dynamic import DeepSpeakerDataset
+    from VoxcelebTestset import VoxcelebTestset
+    from voxceleb_wav_reader import read_voxceleb_structure
+    import constants as c
+    from audio_processing import totensor, truncatedinputfromMFB, read_npy, mk_MFB, mk_mel, mk_if
+
 
 # Training settings
 parser = argparse.ArgumentParser(description='PyTorch Speaker Recognition')
@@ -131,8 +143,10 @@ def parallel_function(f, sequence, num_threads=None):
     pool.join()
     return cleaned
 
+num_features = c.NUM_FEATURES
 if args.makemfb:
     print('==> Started MFB')
+    num_features = c.FILTER_BANK
     print('==> Started converting wav to npy')
     parallel_function(mk_MFB, [datum['file_path'] for datum in voxceleb_test], num_threads)
     print('===> Converting test set is done')
@@ -143,6 +157,7 @@ if args.makemfb:
     print("==> Complete converting")
 elif args.makemel:
     print('==> Started MEL')
+    num_features = c.MEL_FEATURES
     print('==> Started converting wav to npy')
     parallel_function(mk_mel, [datum['file_path'] for datum in voxceleb_test], num_threads)
     print('===> Converting test set is done')
@@ -153,6 +168,7 @@ elif args.makemel:
     print("==> Complete converting")
 elif args.makeif:
     print('==> Started IF')
+    num_features = c.IF_FEATURES
     print('==> Started converting wav to npy')
     parallel_function(mk_if, [datum['file_path'] for datum in voxceleb_test], num_threads)
     print('===> Converting test set is done')
@@ -188,9 +204,9 @@ del voxceleb_test
 
 
 # create logger
-LOG_DIR = args.log_dir + '/run-optim_{}-n{}-lr{}-wd{}-m{}-embeddings{}-msceleb-alpha10-num_classes{}'\
+LOG_DIR = args.log_dir + '/run-optim_{}-n{}-lr{}-wd{}-m{}-embeddings{}-msceleb-alpha10-num_classes{}-num_features{}'\
     .format(args.optimizer, args.n_triplets, args.lr, args.wd,
-            args.margin,args.embedding_size,len(train_dir.classes))
+            args.margin,args.embedding_size,len(train_dir.classes), num_features)
 logger = Logger(LOG_DIR)
 
 
@@ -202,7 +218,7 @@ def main():
     print('\nparsed options:\n{}\n'.format(vars(args)))
     print('\nNumber of Classes:\n{}\n'.format(len(train_dir.classes)))
 
-    # instantiate model and initialize weights
+    # instantiate model and initialize weightsNUM_FEATURES
     # TODO(xin): IMPORTANT load num_classes from checkpoint
     model = DeepSpeakerModel(embedding_size=args.embedding_size,
                              num_classes=len(train_dir.classes))
