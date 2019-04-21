@@ -160,16 +160,30 @@ class truncatedinput(object):
     interpolation: Default: PIL.Image.BILINEAR
     """
 
-    def __call__(self, input):
+    def __init__(self, num_frames):
 
-        #min_existing_frames = min(self.libri_batch['raw_audio'].apply(lambda x: len(x)).values)
-        want_size = int(c.TRUNCATE_SOUND_FIRST_SECONDS * c.SAMPLE_RATE)
-        if want_size > len(input):
-            output = np.zeros((want_size,))
-            output[0:len(input)] = input
-            return output
+        super(truncatedinput, self).__init__()
+        self.num_frames = num_frames
+
+    def __call__(self, frames_features):
+
+        shape = frames_features.shape
+        num_frames = shape[-2]
+        num_features = shape[-1]
+        frames_features = frames_features.view((shape[-2], shape[-1]))
+        import random
+
+        if self.num_frames <= num_frames:
+            j = random.randrange(0, num_frames - self.num_frames)
+            frames_slice = frames_features[j:j + self.num_frames]
         else:
-            return input[0:want_size]
+            frames_slice = torch.zeros([self.num_frames, num_features], dtype=torch.float64)
+            frames_slice[0:num_frames, :] = frames_features
+
+        # Changed Dimenisions
+        shape = list(shape)
+        shape[-2] = self.num_frames
+        return frames_slice.view(shape)
 
 
 class toMFB(object):
@@ -197,21 +211,27 @@ class totensor(object):
     size: size of the exactly size or the smaller edge
     interpolation: Default: PIL.Image.BILINEAR
     """
+    def __init__(self, permute=True):
+        self.permute = permute
 
-
-    def __call__(self, pic):
+    def __call__(self, img):
         """
         Args:
-            pic (PIL.Image or numpy.ndarray): Image to be converted to tensor.
+            img (PIL.Image or numpy.ndarray): Image to be converted to tensor.
 
         Returns:
             Tensor: Converted image.
         """
-        if isinstance(pic, np.ndarray):
+        if isinstance(img, np.ndarray):
+            img = torch.FloatTensor(img)
 
-            # handle numpy array
-            img = torch.FloatTensor(pic.transpose((0, 2, 1)))
-            return img
+        if self.permute:
+            axis = [ii for ii in range(0, len(img.shape))]
+            axis[-1] = len(img.shape) - 2
+            axis[-2] = len(img.shape) - 1
+            img = img.permute(tuple(axis))
+
+        return img
 
 
 class tonormal(object):

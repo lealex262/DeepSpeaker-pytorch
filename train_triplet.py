@@ -204,9 +204,9 @@ del voxceleb_test
 
 
 # create logger
-LOG_DIR = args.log_dir + '/run-optim_{}-n{}-lr{}-wd{}-m{}-embeddings{}-msceleb-alpha10-num_classes{}-num_features{}'\
+LOG_DIR = args.log_dir + '/run-optim_{}-n{}-lr{}-wd{}-m{}-embeddings{}-msceleb-alpha10-num_classes{}-num_features{}-num_frames{}'\
     .format(args.optimizer, args.n_triplets, args.lr, args.wd,
-            args.margin,args.embedding_size,len(train_dir.classes), num_features)
+            args.margin,args.embedding_size,len(train_dir.classes), num_features, c.NUM_FRAMES)
 logger = Logger(LOG_DIR)
 
 
@@ -221,7 +221,9 @@ def main():
     # instantiate model and initialize weightsNUM_FEATURES
     # TODO(xin): IMPORTANT load num_classes from checkpoint
     model = DeepSpeakerModel(embedding_size=args.embedding_size,
-                             num_classes=len(train_dir.classes))
+                             num_classes=len(train_dir.classes),
+                             feature_dim=num_features,
+                             frame_dim=c.NUM_FRAMES)
 
     if args.cuda:
         model.cuda()

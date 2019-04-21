@@ -3,6 +3,7 @@ import glob
 import os
 from tqdm import tqdm
 import fnmatch
+import numpy as np
 
 import torch
 import torch.optim as optim
@@ -11,10 +12,10 @@ import torch.utils.data as data
 import torchvision.transforms as transforms
 
 try:
-    from .audio_processing import totensor, truncatedinputfromMFB, read_npy
+    from .audio_processing import totensor, truncatedinput, truncatedinputfromMFB, read_npy
     from .model import DeepSpeakerModel
 except ValueError:
-    from audio_processing import totensor, truncatedinputfromMFB, read_npy
+    from audio_processing import totensor, truncatedinput, truncatedinputfromMFB, read_npy
     from model import DeepSpeakerModel
 
 
@@ -44,6 +45,39 @@ class EmbedSet(data.Dataset):
         return len(self.audio_list)
 
 
+"""
+New model that accepts input as (Batch Size x 1 x Frames x Features)
+and Transforms(truncates inputs)
+Currently the Frames are fixed and features can vary
+"""
+class Embedder(torch.nn.Module):
+    def __init__(self, model, num_frames, permute=True):
+        """
+        Para: the embedding model
+        """
+        super(Embedder, self).__init__()
+        self.model = model
+        self.frame_dim = num_frames
+        self.transformer = transforms.Compose([
+        truncatedinput(num_frames),
+        totensor(permute=permute)
+        ])
+
+    def forward(self, x):
+        """
+        Input: (Batch Size x 1 x Frames x Features)
+        """
+        x = self.transformer(x)
+        return self.model.forward(x)
+
+    def forward_classifier(self, x):
+        """
+        Input: (Batch Size x 1 x Frames x Features)
+        """
+        x = self.transform(x)
+        return self.model.forward_classifier(x)
+
+
 def parse_arguments():
     parser = argparse.ArgumentParser(description='PyTorch Speaker Recognition')
     parser.add_argument('--audio-path',
@@ -64,7 +98,9 @@ def parse_arguments():
     parser.add_argument('--embedding-size', type=int, default=512, metavar='ES',
                     help='Dimensionality of the embedding')
     parser.add_argument('--num-features', type=int, default=64,
-                    help='Dimensionality of the embedding')
+                    help='Dimensionality of the features')
+    parser.add_argument('--num-frames', type=int, default=32,
+                    help='Dimensionality of the frames')
 
     # Device options
     parser.add_argument('--no-cuda', action='store_true', default=False,
@@ -82,7 +118,7 @@ def parse_arguments():
 
     # Params
     if args.checkpoint != None:
-        args.embedding_size, args.num_classes, args.num_features = parse_params(args.checkpoint)
+        args.embedding_size, args.num_classes, args.num_features, args.num_frames = parse_params(args.checkpoint)
 
     return args
 
@@ -91,12 +127,15 @@ def parse_params(checkpoint_folder):
     embedding_size = int(os.path.dirname(checkpoint_folder).split('-')[6].split('embeddings')[-1].strip())
     num_classes = int(os.path.dirname(checkpoint_folder).split('-')[9].split('num_classes')[-1].strip())
     num_features = int(os.path.dirname(checkpoint_folder).split('-')[10].split('num_features')[-1].strip())
-    return embedding_size, num_classes, num_features
+    num_frames = int(os.path.dirname(checkpoint_folder).split('-')[11].split('num_frames')[-1].strip())
+    return embedding_size, num_classes, num_features, num_frames
 
 
-def load_embedder(checkpoint_path = None, embedding_size = 512, num_classes = 5994, num_features=64, cuda = False, allow_permute=False):
+def load_embedder(checkpoint_path = None, embedding_size = 512, num_classes = 5994, num_features=64, frame_dim=32, cuda = False, permute=False, require_audio_path=True):
     model = DeepSpeakerModel(embedding_size=embedding_size,
-                             num_classes=num_classes)
+                             num_classes=num_classes,
+                             feature_dim=num_features,
+                             frame_dim=frame_dim)
     if cuda:
         model.cuda()
 
@@ -107,14 +146,17 @@ def load_embedder(checkpoint_path = None, embedding_size = 512, num_classes = 59
         model.load_state_dict(package['state_dict'])
         model.eval()
 
-    return Embedder(model, num_features, allow_permute=allow_permute)
+    if not require_audio_path:
+        model = Embedder(model, frame_dim, permute)
+
+    return model
 
 
-def embedding_data_loader(audio_path, batch_size =  1, cuda = False):
+def embedding_data_loader(audio_path, batch_size =  1, cuda = False, permute=False):
     # Transformations
     transform_embed = transforms.Compose([
     truncatedinputfromMFB(),
-    totensor()
+    totensor(permute=permute)
     ])
 
     # Reader
@@ -129,66 +171,52 @@ def embedding_data_loader(audio_path, batch_size =  1, cuda = False):
     return inference_loader
 
 
-"""
-New model that accepts input as (Batch Size x 1 x Frames x Features)
-"""
-class Embedder(torch.nn.Module):
-    def __init__(self, model, num_features, check_dim=True, allow_permute=False):
-        """
-        Para: the embedding model
-        """
-        super(Embedder, self).__init__()
-        self.model = model
-        self.num_features = num_features
-        self.check_dim = check_dim
-        self.allow_permute = allow_permute
-
-    def forward(self, x):
-        """
-        Input: (Batch Size x 1 x Frames x Features)
-        """
-        if self.allow_permute or (self.check_dim and self.num_features == x.shape[3]):
-            x = x.permute(0, 1, 3, 2)
-        return self.model.forward(x)
-
-    def forward_classifier(self, x):
-        """
-        Input: (Batch Size x 1 x Frames x Features)
-        """
-        if self.allow_permute or (self.check_dim and self.num_features == x.shape[3]):
-            x = x.permute(0, 1, 3, 2)
-        return self.model.forward_classifier(x)
-
-
 def main():
     args = parse_arguments()
     print('==> args: {}'.format(args))
 
     # Dataloaders
-    inference_loader = embedding_data_loader(args.audio_path, args.batch_size, args.cuda)
+    inference_loader = embedding_data_loader(args.audio_path, args.batch_size, args.cuda, True)
 
     # Load Model
     if args.checkpoint != None:
-        model = load_embedder(args.checkpoint, args.embedding_size, args.num_classes, args.cuda)
+        model = load_embedder(args.checkpoint, args.embedding_size, args.num_classes, cuda=args.cuda, permute=True)
     else:
         model = load_embedder()
 
+    # # TEST 1
     # Output
     pbar = tqdm(enumerate(inference_loader))
     for batch_idx, data in pbar:
         if args.cuda:
             data = data.cuda()
         data = Variable(data)
-        out = model(data)
-
-        features = out.detach().cpu().numpy()
         print('')
         print('>>>>>>>>>>>>>>> data')
         print(data.shape)
+
+        out = model(data)
+        features = out.detach().cpu().numpy()
+
         print('>>>>>>>>>>>>>>> features')
         print(features.shape)
         # print(features)
         assert features.shape == (args.batch_size, args.embedding_size)
+
+
+    # TEST 2
+    print("TEST 2")
+    model = load_embedder(require_audio_path=False, permute=True)
+
+    # Data
+    data = np.zeros((1, 1, 128, 64), dtype=np.double)
+    data = torch.as_tensor(data, dtype=torch.double)
+    data = Variable(data).float()
+
+    # Out
+    out = model.forward(data)
+    features = out.detach().cpu().numpy()
+    print(features.shape)
 
 
 if __name__ == '__main__':
