@@ -160,16 +160,13 @@ class myResNet(nn.Module):
 
 
 class DeepSpeakerModel(nn.Module):
-    def __init__(self, embedding_size, num_classes, feature_dim = 64):
+    def __init__(self, embedding_size, num_classes, feature_dim = 64, frame_dim = 32):
         super(DeepSpeakerModel, self).__init__()
 
         self.embedding_size = embedding_size
         self.model = myResNet(BasicBlock, [3, 3, 3, 3])
-        if feature_dim == 64:
-            num = int(math.ceil(c.NUM_FRAMES/16.0))
-            self.model.fc = nn.Linear(512 * num, self.embedding_size)
-        elif feature_dim == 40:
-            self.model.fc = nn.Linear(256 * 5, self.embedding_size)
+        num = int(math.ceil(frame_dim/16.0))
+        self.model.fc = nn.Linear(512 * num, self.embedding_size)
         self.model.classifier = nn.Linear(self.embedding_size, num_classes)
 
     def l2_norm(self, input):
