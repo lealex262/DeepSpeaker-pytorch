@@ -12,10 +12,10 @@ import torch.utils.data as data
 import torchvision.transforms as transforms
 
 try:
-    from .audio_processing import totensor, truncatedinput, truncatedinputfromMFB, read_npy
+    from .audio_processing import totensor, truncatedinput, read_npy
     from .model import DeepSpeakerModel
 except ValueError:
-    from audio_processing import totensor, truncatedinput, truncatedinputfromMFB, read_npy
+    from audio_processing import totensor, truncatedinput, read_npy
     from model import DeepSpeakerModel
 
 
@@ -51,7 +51,7 @@ and Transforms(truncates inputs)
 Currently the Frames are fixed and features can vary
 """
 class Embedder(torch.nn.Module):
-    def __init__(self, model, num_frames, permute=True):
+    def __init__(self, model, num_frames, permute=True, truncate=True):
         """
         Para: the embedding model
         """
@@ -59,8 +59,8 @@ class Embedder(torch.nn.Module):
         self.model = model
         self.frame_dim = num_frames
         self.transformer = transforms.Compose([
-        truncatedinput(num_frames),
-        totensor(permute=permute)
+        totensor(permute=permute),
+        truncatedinput(num_frames, truncate)
         ])
 
     def forward(self, x):
@@ -131,7 +131,7 @@ def parse_params(checkpoint_folder):
     return embedding_size, num_classes, num_features, num_frames
 
 
-def load_embedder(checkpoint_path = None, embedding_size = 512, num_classes = 5994, num_features=64, frame_dim=32, cuda = False, permute=False, require_audio_path=True):
+def load_embedder(checkpoint_path = None, embedding_size = 512, num_classes = 5994, num_features=128, frame_dim=32, cuda = False, permute=False, truncate=False):
     model = DeepSpeakerModel(embedding_size=embedding_size,
                              num_classes=num_classes,
                              feature_dim=num_features,
@@ -146,18 +146,21 @@ def load_embedder(checkpoint_path = None, embedding_size = 512, num_classes = 59
         model.load_state_dict(package['state_dict'])
         model.eval()
 
-    if not require_audio_path:
-        model = Embedder(model, frame_dim, permute)
-
-    return model
+    return Embedder(model, frame_dim, permute, truncate)
 
 
-def embedding_data_loader(audio_path, batch_size =  1, cuda = False, permute=False):
+def embedding_data_loader(audio_path, batch_size =  1, frame_dim=32, cuda = False, permute=False):
     # Transformations
-    transform_embed = transforms.Compose([
-    truncatedinputfromMFB(),
-    totensor(permute=permute)
-    ])
+    if batch_size == 1:
+        transform_embed = transforms.Compose([
+        totensor(permute=permute),
+        truncatedinput(frame_dim, False),
+        ])
+    else:
+        transform_embed = transforms.Compose([
+        totensor(permute=permute),
+        truncatedinput(frame_dim),
+        ])
 
     # Reader
     file_loader = read_npy
@@ -176,7 +179,7 @@ def main():
     print('==> args: {}'.format(args))
 
     # Dataloaders
-    inference_loader = embedding_data_loader(args.audio_path, args.batch_size, args.cuda, True)
+    inference_loader = embedding_data_loader(args.audio_path, args.batch_size, args.num_frames, args.cuda, False)
 
     # Load Model
     if args.checkpoint != None:
@@ -206,10 +209,10 @@ def main():
 
     # TEST 2
     print("TEST 2")
-    model = load_embedder(require_audio_path=False, permute=True)
+    model = load_embedder(truncate=False, permute=False)
 
     # Data
-    data = np.zeros((1, 1, 128, 64), dtype=np.double)
+    data = np.zeros((5, 1, 256, 128), dtype=np.double)
     data = torch.as_tensor(data, dtype=torch.double)
     data = Variable(data).float()
 
