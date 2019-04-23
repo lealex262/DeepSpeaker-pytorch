@@ -19,7 +19,6 @@ except ValueError:
     from model import DeepSpeakerModel
 
 
-
 class EmbedSet(data.Dataset):
     def __init__(self, audio_path, loader, transform=None):
         self.audio_path = audio_path
@@ -131,7 +130,7 @@ def parse_params(checkpoint_folder):
     return embedding_size, num_classes, num_features, num_frames
 
 
-def load_embedder(checkpoint_path = None, embedding_size = 512, num_classes = 5994, num_features=128, frame_dim=32, cuda = False, permute=False, truncate=False):
+def load_embedder(checkpoint_path = None, embedding_size = 512, num_classes = 5994, num_features=80, frame_dim=256, cuda = False, permute=False, truncate=False):
     model = DeepSpeakerModel(embedding_size=embedding_size,
                              num_classes=num_classes,
                              feature_dim=num_features,
@@ -149,7 +148,7 @@ def load_embedder(checkpoint_path = None, embedding_size = 512, num_classes = 59
     return Embedder(model, frame_dim, permute, truncate)
 
 
-def embedding_data_loader(audio_path, batch_size =  1, frame_dim=32, cuda = False, permute=False):
+def embedding_data_loader(audio_path, batch_size =  1, frame_dim=256, cuda = False, permute=False):
     # Transformations
     if batch_size == 1:
         transform_embed = transforms.Compose([
@@ -183,7 +182,7 @@ def main():
 
     # Load Model
     if args.checkpoint != None:
-        model = load_embedder(args.checkpoint, args.embedding_size, args.num_classes, cuda=args.cuda, permute=True)
+        model = load_embedder(args.checkpoint, args.embedding_size, args.num_classes, cuda=args.cuda, permute=False)
     else:
         model = load_embedder()
 
@@ -212,7 +211,7 @@ def main():
     model = load_embedder(truncate=False, permute=False)
 
     # Data
-    data = np.zeros((5, 1, 256, 128), dtype=np.double)
+    data = np.zeros((5, 1, 512, 80), dtype=np.double)
     data = torch.as_tensor(data, dtype=torch.double)
     data = Variable(data).float()
 
