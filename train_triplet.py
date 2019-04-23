@@ -17,21 +17,21 @@ try:
     from .logger import Logger
 
     from .model import DeepSpeakerModel, TripletMarginLoss, distance
-    from .DeepSpeakerDataset_dynamic import DeepSpeakerDataset
+    from .DeepSpeakerDataset import DeepSpeakerDataset
     from .VoxcelebTestset import VoxcelebTestset
     from .voxceleb_wav_reader import read_voxceleb_structure
     from . import constants as c
-    from .audio_processing import totensor, truncatedinputfromMFB, read_npy, mk_MFB, mk_mel, mk_if
+    from .audio_processing import totensor, truncatedinput, read_npy, mk_MFB, mk_mel, mk_if
 except ValueError:
     from eval_metrics import evaluate
     from logger import Logger
 
     from model import DeepSpeakerModel, TripletMarginLoss, distance
-    from DeepSpeakerDataset_dynamic import DeepSpeakerDataset
+    from DeepSpeakerDataset import DeepSpeakerDataset
     from VoxcelebTestset import VoxcelebTestset
     from voxceleb_wav_reader import read_voxceleb_structure
     import constants as c
-    from audio_processing import totensor, truncatedinputfromMFB, read_npy, mk_MFB, mk_mel, mk_if
+    from audio_processing import totensor, truncatedinput, read_npy, mk_MFB, mk_mel, mk_if
 
 
 # Training settings
@@ -53,12 +53,10 @@ parser.add_argument('--epochs', type=int, default=25, metavar='E',
 # Training options
 parser.add_argument('--embedding-size', type=int, default=512, metavar='ES',
                     help='Dimensionality of the embedding')
-parser.add_argument('--batch-size', type=int, default=64, metavar='BS',
-                    help='input batch size for training (default: 64)')
+parser.add_argument('--batch-size', type=int, default=32, metavar='BS',
+                    help='input batch size for training (default: 32)')
 parser.add_argument('--test-batch-size', type=int, default=64, metavar='BST',
                     help='input batch size for testing (default: 64)')
-parser.add_argument('--test-input-per-file', type=int, default=8, metavar='IPFT',
-                    help='input sample per file for testing (default: 8)')
 parser.add_argument('--n-triplets', type=int, default=1000000, metavar='N',
                     help='how many triplets will generate from the dataset')
 parser.add_argument('--margin', type=float, default=0.1, metavar='MARGIN',
@@ -181,12 +179,12 @@ elif args.makeif:
 
 # Data
 transform_train = transforms.Compose([
-    truncatedinputfromMFB(),
-    totensor()
+    totensor(permute=False),
+    truncatedinput(c.NUM_FRAMES),
 ])
 transform_test = transforms.Compose([
-    truncatedinputfromMFB(input_per_file=args.test_input_per_file),
-    totensor()
+    totensor(permute=False),
+    truncatedinput(c.NUM_FRAMES),
 ])
 file_loader = read_npy
 train_dir = DeepSpeakerDataset(voxceleb=voxceleb_dev,
@@ -229,7 +227,7 @@ def main():
         model.cuda()
 
     from torchsummary import summary
-    summary(model, (1, c.NUM_FEATURES, c.NUM_FRAMES))
+    summary(model, (1, c.NUM_FRAMES, c.NUM_FEATURES))
     # # More detailed information on model
     # print(model)
 

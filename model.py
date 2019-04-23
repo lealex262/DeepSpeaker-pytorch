@@ -165,7 +165,7 @@ class DeepSpeakerModel(nn.Module):
 
         self.embedding_size = embedding_size
         self.model = myResNet(BasicBlock, [3, 3, 3, 3])
-        num = int(math.ceil(frame_dim/16.0))
+        num = int(math.ceil(feature_dim/16.0))
         self.model.fc = nn.Linear(512 * num, self.embedding_size)
         self.model.classifier = nn.Linear(self.embedding_size, num_classes)
 
